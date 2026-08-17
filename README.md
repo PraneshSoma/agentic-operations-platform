@@ -10,7 +10,9 @@ This is not a chatbot bolted onto operational tooling. The runtime never learns
 what "ServiceNow", "hierarchy mismatch", or any other tenant-specific term means
 — it only knows OPCs, connectors, actions, and policy, all config-driven. See
 `requirements/AOP-001-agentic-operations-platform.md` for the full implementation
-specification this initiative is built from.
+specification this initiative is built from, and `context/product-intent/vision-and-differentiation.md`
+for why it's worth building — an evidence-driven engineering control plane,
+not another agent-does-a-task demo.
 
 **Status:** scaffolded, not yet built. Phase 1 (Discovery) has not run yet — see
 [Running the loop](#running-the-loop) below.
@@ -49,7 +51,8 @@ upstream repo.
 |---|---|
 | `README.md` | this file |
 | `CONTEXT.md` | the standing brief every loop agent reads — domain, stack, coding rules |
-| `requirements/AOP-001-*.md` | the Phase 1 Discovery input — the full implementation spec |
+| `context/product-intent/`, `context/engineering-context/` | composite context driving Phase 1 — see `context/README.md` |
+| `requirements/AOP-001-*.md` | the Phase 2+ architecture reference — the full implementation spec |
 | `loop/agents/` | 12 agent bodies + supervisor, filled in for this product's domain |
 | `loop/config/loop.config.json` | model tiers, budgets, guardrails, test/lint commands |
 | `loop/tools/generate.mjs` | generates Copilot and Claude Code modes from source |
@@ -110,7 +113,7 @@ node loop/tools/generate.mjs
 #    Claude Code: point it at loop/modes/agnostic/
 #    Copilot:     cp -r loop/modes/copilot/.github/ .github/
 
-# 3. Run Phase 1 against the seeded requirement doc
+# 3. Run Phase 1 against the seeded composite context (context/)
 /run-pipeline req=AOP-001
 
 # Single story once the queue exists:
@@ -126,12 +129,24 @@ During the loop, the supervisor pauses at every HIL gate — `APPROVE` /
 `docs/GUARDRAILS.md` for the full mechanics, and the upstream repo's
 `GETTING-STARTED.md` if you want the from-scratch walkthrough.
 
-### What Phase 1/2 will produce here
+### What each phase reads
 
-This repo intentionally does **not** pre-author ADRs, an LLD, or a story queue.
-`requirements/AOP-001-agentic-operations-platform.md` is deliberately the raw
-Phase-1 input — the full implementation spec — so Discovery → Requirements →
-ADR → LLD → Story Gen run for real against it rather than being hand-written.
+This repo intentionally does **not** pre-author a discovery brief, ADRs, an
+LLD, or a story queue. Three distinct input sets feed three distinct phases —
+see `context/README.md` for the full rationale:
+
+- **Phase 1 (Discovery → Requirements)** reads `context/product-intent/` and
+  `context/engineering-context/` — the business/engineering framing,
+  including the product owner's differentiation thesis in
+  `context/product-intent/vision-and-differentiation.md`, which explicitly
+  flags a real scope question (does a code/config-change-and-PR resolution
+  path belong in v1?) for Requirements to resolve, not assume.
+- **Phase 2 (ADR → LLD → Story Gen)** reads `requirements/AOP-001-*.md` — the
+  full implementation spec is architecture-shaped, so it belongs here, not in
+  Discovery.
+- **Phase 3 (Build)** reads whatever Story Gen produces.
+
 `loop/agents/supervisor.md`'s story queue currently holds an *illustrative*
-placeholder seeded from the spec's own §38 suggested sequence — replace it with
-Story Gen's real output once Phase 2 completes.
+placeholder seeded from the spec's own §38 suggested sequence, annotated with
+the product owner's "depth over breadth" sequencing preference — replace the
+whole block with Story Gen's real output once Phase 2 completes.

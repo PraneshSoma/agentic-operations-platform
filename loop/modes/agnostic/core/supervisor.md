@@ -200,6 +200,14 @@ dashboards read this file.
 > `requirements/AOP-001-agentic-operations-platform.md`, replace this block
 > with Story Gen's actual output (which may reorder, split, or add stories the
 > spec's iteration list doesn't spell out at this granularity).
+>
+> **Sequencing guidance from `context/product-intent/vision-and-differentiation.md`:**
+> the product owner's stated preference is depth over breadth for the first
+> real pass — one KTLO story proven end-to-end through Confidence Engine +
+> Policy Gate + Verification (even if narrow), rather than many OPCs each
+> landing partially. Story Gen should weigh this against the phase order
+> below rather than defaulting to "finish Phase A fully, then Phase B," if
+> the two are in tension.
 
 ```
 PHASE A — Contracts (spec §4, Iteration 1)

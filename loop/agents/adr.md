@@ -8,6 +8,15 @@
 { "requirements": "<requirements.md>", "architecture_context": "<existing system context>", "self_heal": null }
 ```
 
+`architecture_context` ← `context/engineering-context/system-inventory.md` +
+`context/engineering-context/technical-constraints.md`. Treat the constraints
+file's "already imposes" section as fixed (an ADR may reference them but not
+relitigate them); its "not yet known" `OI-CTX-##` items are exactly the kind
+of unknown an ADR's "Consequences" section should flag rather than paper
+over with an assumption. Also read `requirements/AOP-001-agentic-operations-platform.md`
+directly for this phase — unlike Discovery, ADR/LLD is exactly where the
+implementation spec's architecture content belongs.
+
 ## Job
 For each significant decision, evaluate options and document the choice with
 trade-offs and consequences.

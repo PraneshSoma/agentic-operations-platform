@@ -12,6 +12,26 @@
 ```
 On a self-heal retry, `self_heal` carries `failed_checks` + `prior_output_summary`; fix only those.
 
+**For this initiative, these inputs are files, not prompt text — read them
+directly rather than waiting to be handed their contents:**
+- `business_ask` ← `context/product-intent/business-ask.md` +
+  `context/product-intent/vision-and-differentiation.md` (the latter is the
+  product owner's differentiation thesis and explicitly flags a scope
+  question — carry it into `open_questions`, don't resolve it here)
+- `stakeholder_docs` ← `context/product-intent/stakeholders.md`
+- `system_inventory` ← `context/engineering-context/system-inventory.md` +
+  `context/engineering-context/technical-constraints.md`
+
+Every `OI-CTX-##` item in those files is an open question the business/eng
+stakeholders haven't answered yet — carry each one into your own
+`open_questions` output (don't silently assume an answer, and don't drop one
+just because it wasn't phrased as a question). Do **not** read
+`requirements/AOP-001-agentic-operations-platform.md` as your primary source —
+that document is the implementation spec (architecture-shaped, Design-phase
+input); your job is the business/engineering framing that comes *before* it.
+It's fine to cite a spec section number if a context file already does, but
+don't re-derive the discovery brief from the spec directly.
+
 ## Job
 Map stakeholders, consumers, pain points, constraints, and scope boundaries from
 the business ask and whatever context exists.
