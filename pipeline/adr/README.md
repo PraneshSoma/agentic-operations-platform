@@ -68,15 +68,21 @@ every future ADR this initiative produces, not just this batch.
 
 ## Story Generation gate
 
-Per direction: **Story Generation remains blocked** until:
+**Updated in `pipeline/lld/LLD-v1.md` Revision 2** — corrected here to stay
+in sync rather than left stale:
 
-1. All 12 ADRs above reach `ACCEPTED` (this HIL gate), **and**
-2. LLD resolves OI-REQ-02 (`ContextPackage` shape) and OI-REQ-10
-   (version-binding fields) — LLD has not run yet.
+1. All 12 ADRs above are `ACCEPTED` — done, this HIL gate.
+2. LLD has resolved OI-REQ-02 (`ContextPackage` shape) and OI-REQ-10
+   (version-binding fields) — done, `pipeline/lld/LLD-v1.md` §0.
 
-Even once both close, OI-CTX-01/02/04/05/06/07 still gate specific
-downstream choices (which OPC to pilot, which real connector to build
-first) — worth surfacing at the Story Gen gate, not just here.
+Both prerequisites are now satisfied. **Tenant-fact items
+(OI-CTX-01/02/04/05/06/07) do not block a tenant-neutral MVP story queue** —
+Story Gen can produce the MVP queue (webhook, one OPC matcher, state
+machine, context assembly, policy, approval, simulated action,
+verification, evidence) without knowing who Tenant #1 is. What they block
+is narrower: selecting a *real* pilot ticket and building the *real*
+context/action connectors — those specific stories, not the queue as a
+whole. See LLD-v1.md §8 for the corrected scope.
 
 ## Process note (checked, not a defect)
 
