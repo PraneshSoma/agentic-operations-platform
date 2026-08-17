@@ -1,0 +1,160 @@
+{
+  "_comment": "SINGLE SOURCE OF TRUTH for model selection, budgets, and guardrails. Both modes (copilot, agnostic) are GENERATED from this file by tools/generate.mjs. Never edit per-agent models in the generated modes/ folders — edit them here and regenerate, or drift is guaranteed.",
+  "version": "2.1",
+  "initiative": "AOP-001",
+  "_initiative_doc": "AOP-001 = Agentic Operations Platform, v0.2 implementation spec in requirements/AOP-001-agentic-operations-platform.md. The generator stamps this into copilot-instructions.md and CLAUDE.md.",
+  "_tier_doc": "Agents are assigned an ABSTRACT TIER, never a hardcoded model. Each mode resolves the tier to a concrete model via tier_resolution below. Change an agent's tier here and both modes update on regenerate.",
+  "agent_tiers": {
+    "supervisor": "strong",
+    "discovery": "mid",
+    "requirements": "mid",
+    "adr": "strong",
+    "lld": "strong",
+    "story_gen": "mid",
+    "planning": "strong",
+    "codegen": "mid",
+    "testgen": "mid",
+    "rfc": "cheap",
+    "shadow": "cheap",
+    "review": "strong",
+    "release": "strong"
+  },
+  "_resolution_doc": "tier -> concrete model, per mode. agnostic runs on a single provider at runtime (Claude Code = Claude family only), so its tiers stay within one frontier family. copilot can route cross-provider per agent.",
+  "tier_resolution": {
+    "copilot": {
+      "strong": {
+        "model": "claude-opus-4.6",
+        "fallback": "gpt-5.1"
+      },
+      "mid": {
+        "model": "claude-sonnet-4.6",
+        "fallback": "gpt-5.1-mini"
+      },
+      "cheap": {
+        "model": "claude-haiku-4.5",
+        "fallback": "gemini-3-flash"
+      }
+    },
+    "agnostic": {
+      "_note": "Within the chosen frontier family. Swap the whole family by editing these three lines.",
+      "strong": {
+        "model": "claude-opus-4.6",
+        "fallback": "claude-sonnet-4.6"
+      },
+      "mid": {
+        "model": "claude-sonnet-4.6",
+        "fallback": "claude-haiku-4.5"
+      },
+      "cheap": {
+        "model": "claude-haiku-4.5",
+        "fallback": "claude-sonnet-4.6"
+      }
+    }
+  },
+  "_budget_doc": "Hard stops. Supervisor checks remaining budget BEFORE each handoff and tracks consumed against API-reported usage. First ceiling hit halts. BUDGET_ALERT at alert_pct, BUDGET_EXCEEDED on breach.",
+  "budgets": {
+    "per_agent_tokens": {
+      "discovery": 30000,
+      "requirements": 35000,
+      "adr": 45000,
+      "lld": 60000,
+      "story_gen": 40000,
+      "planning": 40000,
+      "codegen": 80000,
+      "testgen": 60000,
+      "rfc": 30000,
+      "shadow": 35000,
+      "review": 50000,
+      "release": 30000
+    },
+    "per_story_tokens": 250000,
+    "per_run_tokens": 3000000,
+    "max_iterations_per_story": 12,
+    "max_wall_clock_min_per_story": 30,
+    "spend_cap_usd_per_run": 15,
+    "alert_pct": 80,
+    "user_overridable": true,
+    "_override_doc": "Engineers may lower (never silently raise) any budget at invocation: /run-pipeline req=AOP-001 --max-story-tokens=150000 --spend-cap=8"
+  },
+  "_guardrail_doc": "Correctness + safety controls enforced by the supervisor regardless of mode.",
+  "guardrails": {
+    "max_retries_per_stage": 3,
+    "max_self_heal_attempts": 3,
+    "halt_on_repeated_failure": true,
+    "repeat_threshold": 2,
+    "_repeat_doc": "If the SAME failed_checks recur across self-heal attempts, halt early instead of burning all 3 — addresses the Unreliability Tax.",
+    "error_taxonomy": {
+      "transient": {
+        "examples": [
+          "rate_limit",
+          "timeout",
+          "5xx"
+        ],
+        "action": "backoff_retry",
+        "max_backoff_s": 60
+      },
+      "deterministic": {
+        "examples": [
+          "quality_gate_fail",
+          "lint_fail"
+        ],
+        "action": "self_heal"
+      },
+      "structural": {
+        "examples": [
+          "compile_error",
+          "missing_dependency",
+          "ambiguous_spec"
+        ],
+        "action": "escalate_human"
+      }
+    },
+    "real_test_gate": true,
+    "test_command": "pnpm -w test",
+    "lint_command": "pnpm -w lint",
+    "_test_doc": "Supervisor runs the project test + lint command and gates on the real exit code. Agent self-reported PASS is never sufficient. Both scripts are wired at the repo root (see package.json) and fan out to every workspace via pnpm -r; a fresh checkout passes both with zero stories built yet — see loop/config/README or the root package.json scripts for what each currently runs.",
+    "context_isolation": true,
+    "_iso_doc": "Each agent receives only its declared inputs (planning_context, codegen file list) — never the full accumulated transcript. Primary defense against O(n^2) token growth.",
+    "secret_scan_before_write": true,
+    "git_checkpoint_per_story": true,
+    "_git_doc": "Each story on its own branch; gate rejection or self-heal exhaustion auto-reverts the working tree.",
+    "atomic_state_writes": true,
+    "run_lock": true,
+    "pin_prompt_and_model_versions": true
+  },
+  "_hil_doc": "Default ALL gates ON for first run. Per-story effect only — never mid-story.",
+  "hil": {
+    "discovery": true,
+    "requirements": true,
+    "adr": true,
+    "lld": true,
+    "story_gen": true,
+    "planning": true,
+    "codegen": true,
+    "testgen": true,
+    "rfc": true,
+    "shadow": true,
+    "review": true,
+    "release": true
+  },
+  "telemetry": {
+    "enabled": true,
+    "_doc": "Every agent run emits one record against schemas/telemetry.schema.json. This is what makes the three dashboards real instead of representative.",
+    "sink": "telemetry/events.ndjson",
+    "calibrate_tokens_against": "api_reported_prior_turn",
+    "emit_on": [
+      "agent_complete",
+      "self_heal",
+      "budget_alert",
+      "budget_exceeded",
+      "model_fallback",
+      "hil_result"
+    ]
+  },
+  "economics": {
+    "_doc": "Used by the executive dashboard TCO formula. Fill with real values to make ROI numbers real — left at 0 until Tenant #1 baseline effort is measured.",
+    "engineer_day_rate_usd": 0,
+    "manual_days_per_story_baseline": 0,
+    "_tco_formula": "(manual_days - pipeline_days) * engineer_day_rate * stories_done"
+  }
+}

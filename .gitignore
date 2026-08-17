@@ -1,0 +1,35 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# env / secrets — never committed, ever (see CONTEXT.md RULE 5)
+.env
+.env.*
+!.env.example
+
+# test / coverage
+coverage/
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+
+# loop runtime state — the resumable run-lock file, not source. Note:
+# pipeline/<story_id>/planning_context.json and pr_summary.md ARE meant to be
+# committed per story (they're the audit record — see the git_checkpoint_per_story
+# guardrail in loop/config/loop.config.json), only the top-level state file is local.
+pipeline_state.json
+pipeline_state.json.tmp

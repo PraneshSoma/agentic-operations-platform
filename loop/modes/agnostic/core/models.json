@@ -1,0 +1,54 @@
+{
+  "supervisor": {
+    "model": "claude-opus-4.6",
+    "fallback": "claude-sonnet-4.6"
+  },
+  "discovery": {
+    "model": "claude-sonnet-4.6",
+    "fallback": "claude-haiku-4.5"
+  },
+  "requirements": {
+    "model": "claude-sonnet-4.6",
+    "fallback": "claude-haiku-4.5"
+  },
+  "adr": {
+    "model": "claude-opus-4.6",
+    "fallback": "claude-sonnet-4.6"
+  },
+  "lld": {
+    "model": "claude-opus-4.6",
+    "fallback": "claude-sonnet-4.6"
+  },
+  "story_gen": {
+    "model": "claude-sonnet-4.6",
+    "fallback": "claude-haiku-4.5"
+  },
+  "planning": {
+    "model": "claude-opus-4.6",
+    "fallback": "claude-sonnet-4.6"
+  },
+  "codegen": {
+    "model": "claude-sonnet-4.6",
+    "fallback": "claude-haiku-4.5"
+  },
+  "testgen": {
+    "model": "claude-sonnet-4.6",
+    "fallback": "claude-haiku-4.5"
+  },
+  "rfc": {
+    "model": "claude-haiku-4.5",
+    "fallback": "claude-sonnet-4.6"
+  },
+  "shadow": {
+    "model": "claude-haiku-4.5",
+    "fallback": "claude-sonnet-4.6"
+  },
+  "review": {
+    "model": "claude-opus-4.6",
+    "fallback": "claude-sonnet-4.6"
+  },
+  "release": {
+    "model": "claude-opus-4.6",
+    "fallback": "claude-sonnet-4.6"
+  }
+}

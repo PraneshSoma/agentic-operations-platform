@@ -1,0 +1,37 @@
+# Local dev infra only — not a deployment target. Postgres backs the Evidence
+# Ledger + relational core (spec §32); Redis backs BullMQ for the durable
+# orchestrator (spec §7). Neither service is exposed outside localhost.
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aop
+      POSTGRES_PASSWORD: aop_dev_only
+      POSTGRES_DB: aop
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - aop_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aop -d aop"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - aop_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  aop_postgres_data:
+  aop_redis_data:
