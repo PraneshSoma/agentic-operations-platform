@@ -5,11 +5,21 @@
 ## The raw ask
 
 Build a platform that lets an operations organization resolve real
-operational tickets (incidents, reconciliation, access/entitlement issues,
-...) with AI assistance — investigation, diagnosis, and resolution planning —
-**without** handing an AI direct write access to production systems, and
-**without** hand-building bespoke automation per ticket type. Prove it end to
-end on one real ticket at Tenant #1 before generalizing.
+operational work — incidents, reconciliation, access/entitlement issues, and
+engineering fixes (code/config changes) alike — with AI assistance:
+investigation, diagnosis, and resolution planning, **without** handing an AI
+direct write access to production systems or source control, and **without**
+hand-building bespoke automation per ticket type. Prove it end to end on one
+real ticket at Tenant #1 before generalizing.
+
+**Confirmed scope (see `vision-and-differentiation.md`'s "Scope decision"):**
+"resolution" is not limited to operational actions (restart, scale,
+reconcile) — it explicitly includes code/config-change resolutions that go
+through this repo's own Build loop (planning → codegen → testgen → rfc) as a
+governed action, gated by the same policy/approval machinery as any other
+action. AOP is the evidence-driven engineering control plane (ECP
+discipline) governing *both* kinds of resolution under one runtime, one
+policy engine, one evidence ledger — not two products.
 
 ## Problem, in the shape Discovery needs it
 
@@ -39,9 +49,13 @@ carrying zero ticket-type-specific code (spec §1.1, validated by §34's
 acceptance criteria).
 
 Success is not "the AI gave a good answer." Success is: the mutation that
-happened was authorized, verified, and auditable, and a second, unrelated
-ticket type runs on the same runtime with zero code changes (spec §34, §38
-Iteration 6).
+happened — ops action or code change alike — was authorized, verified, and
+auditable, and a second, unrelated ticket type runs on the same runtime with
+zero *runtime* code changes (spec §34, §38 Iteration 6). Per
+`vision-and-differentiation.md`'s prototype-focus guidance, the first real
+pass should prove this on **one** story end-to-end (through Confidence
+Engine + Policy Gate + Verification) rather than partial coverage across
+many OPCs — depth over breadth for v1.
 
 ## Who this is for
 
@@ -65,6 +79,11 @@ why, not what.)
 - Not selling "autonomous ops" — the product's own thesis (spec §40) is
   explicit that historical outcomes *eventually* enable governed autonomy,
   not that autonomy is the v1 pitch.
+- Not a general-purpose AI coding assistant — the Build-loop integration
+  (see scope decision above) exists to resolve a *specific diagnosed
+  ticket* under policy/approval/evidence gates, not to offer open-ended code
+  generation. If a story can't trace to an `IncomingRequest`, it's out of
+  scope for this product regardless of how useful it might be standalone.
 
 ## Open items
 

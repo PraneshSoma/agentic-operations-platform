@@ -1,18 +1,26 @@
 # Agentic Operations Platform
 
-A governed operational runtime: organizations configure triggers, Operational
-Procedure Contracts (OPCs), context connectors, actions, and policy; agents
-investigate and plan against bounded, evidence-backed context; a deterministic
-policy engine controls authority; humans gate higher-risk work; every decision
-and outcome is recorded to an evidence ledger.
+A governed engineering control plane: organizations configure triggers,
+Operational Procedure Contracts (OPCs), context connectors, actions, and
+policy; agents investigate and plan against bounded, evidence-backed context;
+a deterministic policy engine controls authority; humans gate higher-risk
+work; every decision and outcome is recorded to an evidence ledger. Governed
+resolution spans two kinds of action, under one runtime and one policy
+engine: **operational actions** against registered production systems
+(restart, scale, reconcile) and **engineering changes** — code/config fixes
+that go through this repo's own agentic-sdlc-loop Build loop (planning →
+codegen → testgen → rfc) as a governed, evidenced action type. See
+`context/product-intent/vision-and-differentiation.md`'s "Scope decision" for
+the full reasoning.
 
 This is not a chatbot bolted onto operational tooling. The runtime never learns
 what "ServiceNow", "hierarchy mismatch", or any other tenant-specific term means
 — it only knows OPCs, connectors, actions, and policy, all config-driven. See
 `requirements/AOP-001-agentic-operations-platform.md` for the full implementation
 specification this initiative is built from, and `context/product-intent/vision-and-differentiation.md`
-for why it's worth building — an evidence-driven engineering control plane,
-not another agent-does-a-task demo.
+for why it's worth building — an evidence-driven engineering control plane
+(the ECP discipline, under the Agentic Operations Platform name), not
+another agent-does-a-task demo.
 
 **Status:** scaffolded, not yet built. Phase 1 (Discovery) has not run yet — see
 [Running the loop](#running-the-loop) below.
@@ -32,7 +40,11 @@ deterministic Policy Engine and, above R0/R1 risk, a human Approval Gate, before
 the Action Executor runs it (with a pre-execution drift check) and the
 Verification Engine confirms the outcome. Every step — context, hypothesis, plan,
 approval, execution, verification — is written to an append-only Evidence Ledger
-that the Control Tower dashboards read from. Full detail in the spec.
+that the Control Tower dashboards read from. Full detail in the spec. One
+action kind deserves a callout: a code/config-change resolution is a
+registered `ActionDefinition` like any other, whose executor invokes this
+repo's own Build loop for a single scoped story — the runtime doesn't
+special-case "code fix" any more than it special-cases any other action.
 
 ---
 
@@ -72,6 +84,9 @@ packages/contracts/        shared TS types + zod schemas for every domain contra
 packages/context-service/  context connectors + Context Package assembly       — §8-10
 packages/policy-engine/    deterministic policy evaluation                     — §15-16
 packages/action-executor/  action registry, connectors, preflight, execution   — §13-14
+                            (includes the code/config-change connector that
+                            invokes this repo's own Build loop as a governed
+                            action — see context/product-intent/vision-and-differentiation.md)
 packages/evidence-ledger/  Prisma schema + append-only evidence/state storage  — §21, §32
 apps/api/                  Fastify HTTP API — triggers, approvals, control tower reads
 apps/worker/               durable orchestrator loop (state machine)           — §7

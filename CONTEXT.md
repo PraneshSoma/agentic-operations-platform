@@ -10,17 +10,27 @@ engineering brief derived from it.
 
 ## What this service does
 
-A governed operational runtime. Tenants configure triggers (Slack, webhook,
-later ServiceNow/PagerDuty), Operational Procedure Contracts (OPCs — the
-declarative object describing required evidence, mandatory checks, permitted
-actions, verification, escalation, and budget for one class of operational
-work), context connectors (read-only), actions (write, registered), and policy.
-At runtime: a trigger normalizes into an `IncomingRequest`, gets matched to an
-OPC, and a durable orchestrator runs it through context assembly →
-investigation → diagnosis → planning → policy evaluation → (human approval if
-required) → action execution → verification → evidence recording. The LLM
-proposes; the runtime authorizes. No tenant- or scenario-specific logic is ever
-embedded in the runtime — everything is config.
+A governed engineering control plane. Tenants configure triggers (Slack,
+webhook, later ServiceNow/PagerDuty), Operational Procedure Contracts (OPCs —
+the declarative object describing required evidence, mandatory checks,
+permitted actions, verification, escalation, and budget for one class of
+operational work), context connectors (read-only), actions (write,
+registered), and policy. At runtime: a trigger normalizes into an
+`IncomingRequest`, gets matched to an OPC, and a durable orchestrator runs it
+through context assembly → investigation → diagnosis → planning → policy
+evaluation → (human approval if required) → action execution → verification →
+evidence recording. The LLM proposes; the runtime authorizes. No tenant- or
+scenario-specific logic is ever embedded in the runtime — everything is
+config.
+
+Registered actions span two kinds, governed identically: **operational
+actions** against registered production systems, and **engineering-change
+actions** — a code/config-change resolution whose `executor_connector_ref`
+invokes this repo's own agentic-sdlc-loop Build loop (planning → codegen →
+testgen → rfc) for a single scoped story, frozen-plan and policy-gated like
+any other `ProposedAction`. See
+`context/product-intent/vision-and-differentiation.md`'s "Scope decision" for
+the reasoning and `packages/action-executor` in the package layout below.
 
 Node.js 20 / TypeScript (strict) / PostgreSQL / Redis. Monorepo, pnpm
 workspaces.
@@ -82,7 +92,12 @@ packages/policy-engine/     Deterministic PolicyRule evaluation (§15-16),
 
 packages/action-executor/   ActionConnector interface + registry (§13-14),
                              preflight/drift check (§14B), execution identity
-                             delegation (§14A), rollback (§20).
+                             delegation (§14A), rollback (§20). Includes the
+                             code/config-change connector that invokes the
+                             Build loop for a single scoped story (see
+                             "What this service does" above) — rollback for
+                             that connector is a git revert, a materially
+                             different shape than an ops connector's rollback.
                              src/connectors/, src/executor.ts, src/preflight.ts
 
 packages/evidence-ledger/   Prisma schema (§32 relational core) + append-only

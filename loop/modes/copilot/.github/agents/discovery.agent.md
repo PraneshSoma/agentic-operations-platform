@@ -21,8 +21,11 @@ On a self-heal retry, `self_heal` carries `failed_checks` + `prior_output_summar
 directly rather than waiting to be handed their contents:**
 - `business_ask` ← `context/product-intent/business-ask.md` +
   `context/product-intent/vision-and-differentiation.md` (the latter is the
-  product owner's differentiation thesis and explicitly flags a scope
-  question — carry it into `open_questions`, don't resolve it here)
+  product owner's differentiation thesis; its scope decisions — naming stays
+  "Agentic Operations Platform," the Build loop is a native action type — are
+  settled and go straight into `in_scope`/`out_of_scope`, not
+  `open_questions`; its remaining `OI-CTX-##` items and its ADR-level "how"
+  questions on the Build-loop integration are still genuinely open)
 - `stakeholder_docs` ← `context/product-intent/stakeholders.md`
 - `system_inventory` ← `context/engineering-context/system-inventory.md` +
   `context/engineering-context/technical-constraints.md`

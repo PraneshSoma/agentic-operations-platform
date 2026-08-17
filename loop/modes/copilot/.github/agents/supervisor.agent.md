@@ -245,6 +245,10 @@ PHASE D — Execution (spec §33 steps 11-13, Iteration 4)
   D-04  Rollback Manager (§20)                                     [needs D-03]
   D-05  Emergency halt / kill switch (§7A)                         [needs B-03]
   D-06  Token & cost governance / budget enforcement (§7B)         [needs B-03]
+  D-07  Code/config-change ActionConnector — invokes the Build loop
+        for a single scoped story as a governed action; rollback is
+        a git revert (context/product-intent/vision-and-differentiation.md
+        "Scope decision")                                          [needs C-01, C-05]
 
 PHASE E — Evidence + dashboard (spec §33 steps 14-16, Iteration 5)
   E-01  Evidence Ledger persistence — append-only, relationships (§21, §4.6) [needs A-01, D-03]

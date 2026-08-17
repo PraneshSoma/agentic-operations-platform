@@ -88,6 +88,14 @@ or tightly related group, under `packages/contracts/src/schemas/`.
   free-form string instruction, never optional.
 - New `ActionDefinition` entries go in the tenant config fixtures under
   `packages/action-executor/src/registry/`, not hardcoded into the connector.
+- The code/config-change `ActionConnector` (story D-07,
+  `context/product-intent/vision-and-differentiation.md` "Scope decision")
+  follows the same interface as any other — `execute()` triggers a scoped
+  Build-loop run for one story, not this initiative's whole queue, and its
+  `ExecutionResult.output_summary` should reference the produced PR/diff.
+  `rollback()` for this connector is a revert, not a copy of an ops
+  connector's rollback — don't share implementation between the two just
+  because both satisfy the same interface.
 
 ### POLICY / ENGINE stories (§7, §7A, §7B, §14B, §15-16, §6A)
 - `packages/policy-engine/src/<area>/<name>.ts` — deterministic functions only;

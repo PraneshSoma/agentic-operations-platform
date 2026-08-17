@@ -8,6 +8,15 @@
 > (the v0.2 spec), that's called out explicitly below rather than silently
 > resolved — Discovery/Requirements should carry the tension forward as an
 > open item, not this file deciding it unilaterally.
+>
+> **Decided (2026-08-17):** the product owner confirmed two things that were
+> open when this doc was first written — (1) the product keeps the name
+> **Agentic Operations Platform**; "ECP" is the architectural discipline it
+> embodies, not a rename, so `initiative: AOP-001`, `@aop/*`, and this repo's
+> identity stay as-is; (2) the AI Engineering Discipline — this repo's own
+> Build loop (planning → codegen → testgen → rfc) — is explicitly **rolled
+> into** AOP as a native resolution path, not left as an open scope question.
+> Both decisions are reflected inline below rather than left as questions.
 
 ## The differentiation thesis
 
@@ -55,8 +64,8 @@ agent generated a PR." This platform is only credible if it closes the loop:
 ### Mapping onto the existing v0.2 spec
 
 Every stage above already has a home in the spec or in `context/` — this is a
-naming/emphasis layer over existing design, with one real scope question
-(flagged below), not a rewrite:
+naming/emphasis layer over existing design, plus one confirmed scope addition
+(the Build loop as a native resolution path, detailed below), not a rewrite:
 
 | ECP stage | Spec / context anchor |
 |---|---|
@@ -64,7 +73,7 @@ naming/emphasis layer over existing design, with one real scope question
 | Work Normalization | §4.1 `IncomingRequest` |
 | Composite Engineering Context | §8-9 `ContextPackage` + this `context/` tree — see "Engineering Context Package" below |
 | Supervisor / Planner | §6 Request Router + OPC Matcher, §11 Investigator, §12 Planner |
-| Specialist Agents | §13-14 Action Registry / Action Executor — **plus a scope question**, see below |
+| Specialist Agents | §13-14 Action Registry / Action Executor — **now includes the Build loop as a registered action type**, see below |
 | Evidence & Evaluation Layer | §19 Verification Engine, §21 Evidence Ledger — cross-model review is **new**, not yet in the spec |
 | Confidence Engine | §26 Confidence Model — **reconcile carefully**, see below |
 | Policy / Approval Gate | §16 Policy Engine, §18 Approval Service |
@@ -100,30 +109,55 @@ The same discipline is the direct justification for context isolation
 constructs the *minimum sufficient* context per agent call rather than
 broadcasting everything to everyone — this is already built, not aspirational.
 
-## Scope question: does "Specialist Agents" include code/config changes?
+## Scope decision: the AI Engineering Discipline (the Build loop) is a native action type
 
-The v0.2 spec's Action Registry (§13-14) is written around **operational**
-actions against registered systems (restart, scale, reconcile, flip a flag) —
-not code changes with tests and a PR. This vision explicitly includes
-"diagnosis → code/config change → tests → documentation → PR" as a resolution
-path (the worked example is a Checkout-service timeout fixed by a code
-change, not an ops action).
+**Decided.** The v0.2 spec's Action Registry (§13-14) is written around
+**operational** actions against registered systems (restart, scale,
+reconcile, flip a flag) — not code changes with tests and a PR. This vision
+explicitly includes "diagnosis → code/config change → tests → documentation
+→ PR" as a resolution path (the worked example is a Checkout-service timeout
+fixed by a code change, not an ops action), and the product owner has
+confirmed this is in scope for Agentic Operations Platform, not a separate
+product or a v2 deferral.
 
-That path already exists — **it's this repo's own Build loop** (`planning →
-codegen → testgen → rfc`, `docs/HOW-IT-WORKS.md`). The natural reconciliation
-is: a code/config-change resolution is a new `ActionDefinition` kind whose
-`executor_connector_ref` invokes the Build loop's inner loop (planning →
-codegen → testgen → rfc) as a governed action, frozen-plan and
-policy-gated exactly like any other `ProposedAction` (§1.2, §12). It becomes
-one more registered action type, not a parallel system — the runtime still
-doesn't know "code fix" is special, the same way it doesn't know
-"hierarchy_mismatch" is special (§1.1).
+The mechanism: **it's this repo's own Build loop** (`planning → codegen →
+testgen → rfc`, `docs/HOW-IT-WORKS.md`) — the same agentic-sdlc-loop
+machinery building this platform becomes, recursively, one of the platform's
+*own* governed action types once it exists. Concretely, a code/config-change
+resolution is a new `ActionDefinition` kind whose `executor_connector_ref`
+invokes the Build loop's inner loop as a governed action — frozen-plan and
+policy-gated exactly like any other `ProposedAction` (§1.2, §12). It's one
+more registered action type, not a parallel system: the runtime still doesn't
+know "code fix" is special, the same way it doesn't know
+"hierarchy_mismatch" is special (§1.1). Concretely, that likely means:
 
-**This is a real scope decision, not a foregone one — Requirements/ADR
-should decide it explicitly, with at least one alternative considered (e.g.
-code changes stay entirely out of v1 scope, or become a completely separate
-action-executor implementation instead of reusing the Build loop) rather
-than this file deciding it by default.**
+- `ActionDefinition` for a code-change resolution has `blast_radius.scope`
+  and `reversible` set per the target repo/change (typically `entity`/`true`
+  for a scoped fix, `reversible` via git revert), and its
+  `executor_connector_ref` points at an `ActionConnector` implementation that
+  triggers the loop's `/run-pipeline` for a single story scoped to the
+  diagnosed fix — not the whole initiative queue.
+- The loop's own HIL gates (planning/codegen/testgen/rfc) and AOP's approval
+  gate are **not** the same gate stacked twice: for a code-change action, the
+  loop's own gates run *inside* Investigation/Planning (§11-12) as part of
+  producing the `ProposedAction`'s evidence (a green test run, a produced
+  diff, is exactly the kind of `supporting_evidence_ids` §4.3 already
+  expects) — the human-facing approval is the *single* AOP Approval Gate
+  (§18) reviewing the finished, evidenced plan, not a second separate
+  approval inside the loop for the same change.
+- Reversibility for a code-change action is "revert the commit/PR," which is
+  a materially different `rollback_action_ref` (§13) shape than an ops
+  connector's rollback — worth ADR attention, not assumed identical.
+
+**Left open for ADR, deliberately — the *whether* is decided, the *how* is
+not:** exactly how the executor invokes the loop (spawns a scoped pipeline
+run vs. a lighter-weight direct agent call that skips full pipeline
+ceremony for a single well-scoped fix), how its evidence maps onto
+`ExecutionResult`/`VerificationResult`, and how its risk class is computed
+differently from an ops action's blast radius. ADR should still evaluate at
+least one real alternative (e.g., a lighter bespoke code-change executor that
+doesn't invoke the full loop) even though the *inclusion* itself isn't up for
+debate anymore.
 
 ## Confidence Engine — reconcile against §26, don't replace it
 
@@ -192,13 +226,17 @@ prefer depth on one path (through to Confidence Engine + Policy Gate +
 Verification, even if narrow) over breadth across many OPCs, for the first
 real pass through Phase 3.
 
-## Portfolio narrative (context only — not a scope decision)
+## Portfolio narrative — and the naming decision
 
 > Agentic Commerce demonstrates what agents can do. Agentic SDLC Loop
 > demonstrates how agents can build. ECP demonstrates how an enterprise can
 > trust and operate them.
 
-Noted for framing; **does not by itself decide** whether this repo/product
-renames from "Agentic Operations Platform" to "ECP" — that's a naming
-question with real repo-wide surface area (README, CONTEXT.md, package
-scope `@aop/*`, `initiative: AOP-001`), left open rather than applied here.
+**Decided:** this repo/product keeps the name **Agentic Operations
+Platform** — README, `CONTEXT.md`, package scope `@aop/*`, and
+`initiative: AOP-001` all stay as-is. "ECP" names the *discipline* AOP
+embodies (evidence-driven engineering control plane: intake → context →
+execution → verification → governed closure, now spanning both operational
+actions and engineering/code changes via the Build-loop integration above),
+not a separate product or a rename. Where "ECP" appears elsewhere in this
+document it's describing that discipline, not proposing new branding.
