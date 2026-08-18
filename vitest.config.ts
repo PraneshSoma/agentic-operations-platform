@@ -23,7 +23,11 @@ export default defineConfig({
       // process.exit()) — no business logic to verify, and not meaningfully
       // unit-testable without binding a real port. app.ts (the testable
       // factory it calls into) stays covered.
-      exclude: ["**/*.test.ts", "apps/*/src/index.ts"],
+      //
+      // llm-provider.ts is `export interface` only — TypeScript erases
+      // interfaces entirely at compile time, so the emitted JS module has
+      // zero executable statements. There is nothing a test could exercise.
+      exclude: ["**/*.test.ts", "apps/*/src/index.ts", "packages/contracts/src/llm-provider.ts"],
     },
   },
 });
