@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/contracts" },
     { "path": "packages/evidence-ledger" },
+    { "path": "packages/policy-engine" },
     { "path": "apps/api" }
   ]
 }
