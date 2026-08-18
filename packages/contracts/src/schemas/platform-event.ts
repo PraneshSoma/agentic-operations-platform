@@ -47,4 +47,8 @@ export const RECOMMENDED_EVENT_TYPES = [
   "rollback.completed",
   "request.resolved",
   "request.escalated",
+  // Additive — spec §7A / story D-05. Not in spec §22's original list,
+  // which predates §7A's kill switch; added here as the same discipline
+  // requires (CONTEXT.md RULE 8 — additive, not a closed set).
+  "execution.halted",
 ] as const;

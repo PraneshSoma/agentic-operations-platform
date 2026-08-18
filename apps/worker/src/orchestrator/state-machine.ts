@@ -14,24 +14,31 @@ type State = ExecutionState["state"];
  * business logic that decides WHEN to make a given transition (running
  * an investigation, evaluating policy, etc.) is later stories' job
  * (B-04 through D-07).
+ *
+ * ESCALATED_HUMAN_OVERRIDE is reachable from every non-terminal state
+ * (story D-05, spec §7A) — a halt is "a way to stop something already
+ * executing or awaiting a step," which by definition can arrive at any
+ * point before an execution reaches one of its own terminal states.
  */
 const ALLOWED_TRANSITIONS: Record<State, readonly State[]> = {
-  RECEIVED: ["OPC_MATCHED", "FAILED"],
-  OPC_MATCHED: ["CONTEXT_ASSEMBLY", "ESCALATED", "FAILED"],
-  CONTEXT_ASSEMBLY: ["INVESTIGATING", "FAILED"],
-  INVESTIGATING: ["DIAGNOSED", "ESCALATED", "FAILED"],
-  DIAGNOSED: ["PLANNED", "ESCALATED", "FAILED"],
-  PLANNED: ["WAITING_APPROVAL", "FAILED"],
-  WAITING_APPROVAL: ["EXECUTING", "ESCALATED", "FAILED"],
+  RECEIVED: ["OPC_MATCHED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
+  OPC_MATCHED: ["CONTEXT_ASSEMBLY", "ESCALATED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
+  CONTEXT_ASSEMBLY: ["INVESTIGATING", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
+  INVESTIGATING: ["DIAGNOSED", "ESCALATED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
+  DIAGNOSED: ["PLANNED", "ESCALATED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
+  PLANNED: ["WAITING_APPROVAL", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
+  WAITING_APPROVAL: ["EXECUTING", "ESCALATED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
   // LLD-v1 §4: normal completion goes straight to VERIFYING; a worker
   // restart mid-execution with an ATTEMPTED (not COMPLETED) marker goes
   // to EXECUTION_UNCERTAIN instead.
-  EXECUTING: ["EXECUTION_UNCERTAIN", "VERIFYING", "FAILED"],
+  EXECUTING: ["EXECUTION_UNCERTAIN", "VERIFYING", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
   // LLD-v1 §4's exact three proof-gated exits — see UncertainExitProof below.
-  // No fourth entry, no timeout/default exit (ADR-004).
+  // No fourth entry beyond those three plus the halt escape hatch below
+  // (ADR-004: no default/timeout exit — a halt is neither, it's an
+  // explicit, authorized, auditable human action, spec §7A).
   EXECUTION_UNCERTAIN: ["EXECUTING", "VERIFYING", "ESCALATED_HUMAN_OVERRIDE"],
-  VERIFYING: ["RESOLVED", "ROLLING_BACK", "ESCALATED", "FAILED"],
-  ROLLING_BACK: ["RESOLVED", "ESCALATED", "FAILED"],
+  VERIFYING: ["RESOLVED", "ROLLING_BACK", "ESCALATED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
+  ROLLING_BACK: ["RESOLVED", "ESCALATED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
   RESOLVED: [],
   ESCALATED: [],
   ESCALATED_HUMAN_OVERRIDE: [],
