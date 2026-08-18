@@ -19,19 +19,25 @@ type State = ExecutionState["state"];
  * (story D-05, spec §7A) — a halt is "a way to stop something already
  * executing or awaiting a step," which by definition can arrive at any
  * point before an execution reaches one of its own terminal states.
+ *
+ * ESCALATED is additionally reachable from CONTEXT_ASSEMBLY, PLANNED, and
+ * EXECUTING (story D-06, spec §7B) — budget is "checked at each state
+ * transition," and tool-call/token/wall-clock overage can genuinely be
+ * detected while an execution sits in any of those three states, not only
+ * the ones the original graph already allowed to escalate from.
  */
 const ALLOWED_TRANSITIONS: Record<State, readonly State[]> = {
   RECEIVED: ["OPC_MATCHED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
   OPC_MATCHED: ["CONTEXT_ASSEMBLY", "ESCALATED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
-  CONTEXT_ASSEMBLY: ["INVESTIGATING", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
+  CONTEXT_ASSEMBLY: ["INVESTIGATING", "FAILED", "ESCALATED", "ESCALATED_HUMAN_OVERRIDE"],
   INVESTIGATING: ["DIAGNOSED", "ESCALATED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
   DIAGNOSED: ["PLANNED", "ESCALATED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
-  PLANNED: ["WAITING_APPROVAL", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
+  PLANNED: ["WAITING_APPROVAL", "FAILED", "ESCALATED", "ESCALATED_HUMAN_OVERRIDE"],
   WAITING_APPROVAL: ["EXECUTING", "ESCALATED", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
   // LLD-v1 §4: normal completion goes straight to VERIFYING; a worker
   // restart mid-execution with an ATTEMPTED (not COMPLETED) marker goes
   // to EXECUTION_UNCERTAIN instead.
-  EXECUTING: ["EXECUTION_UNCERTAIN", "VERIFYING", "FAILED", "ESCALATED_HUMAN_OVERRIDE"],
+  EXECUTING: ["EXECUTION_UNCERTAIN", "VERIFYING", "FAILED", "ESCALATED", "ESCALATED_HUMAN_OVERRIDE"],
   // LLD-v1 §4's exact three proof-gated exits — see UncertainExitProof below.
   // No fourth entry beyond those three plus the halt escape hatch below
   // (ADR-004: no default/timeout exit — a halt is neither, it's an
