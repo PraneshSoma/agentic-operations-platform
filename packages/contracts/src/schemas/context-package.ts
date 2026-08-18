@@ -5,7 +5,11 @@ const DependencySchema = z.object({
   type: z.string().optional(),
 });
 
-const ApplicationContextSchema = z.object({
+// Exported (Revision — story B-04): assembleContextPackage() needs to
+// validate raw ContextConnector.executeRead() output against each
+// sub-shape independently, before it has a full ContextPackage to
+// validate. Additive-only — no field changed, just visibility.
+export const ApplicationContextSchema = z.object({
   application_id: z.string(),
   name: z.string(),
   owners: z.array(z.string()),
@@ -27,7 +31,7 @@ const ApplicationContextSchema = z.object({
   }),
 });
 
-const RuntimeContextSchema = z.object({
+export const RuntimeContextSchema = z.object({
   time_window: z.object({ from: z.string().datetime(), to: z.string().datetime() }),
   logs: z.object({ summaries: z.array(z.string()), evidence_refs: z.array(z.string()) }),
   metrics: z.array(
@@ -45,7 +49,7 @@ const RuntimeContextSchema = z.object({
   }),
 });
 
-const HistoricalEvidenceContextSchema = z.object({
+export const HistoricalEvidenceContextSchema = z.object({
   similar_cases: z.array(
     z.object({
       prior_request_id: z.string(),
