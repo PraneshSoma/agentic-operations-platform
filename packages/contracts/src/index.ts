@@ -24,6 +24,7 @@ export * from "./schemas/investigation-result.js";
 export * from "./schemas/resolution-plan.js";
 export * from "./schemas/identity-principal.js";
 export * from "./schemas/policy-rule.js";
+export * from "./schemas/approval.js";
 export * from "./llm-provider.js";
 
 /**

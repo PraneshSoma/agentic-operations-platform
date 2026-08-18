@@ -1,9 +1,15 @@
 import Fastify, { type FastifyInstance } from "fastify";
+import type { IdentityResolver } from "@aop/identity";
+import { LocalDevIdentityResolver } from "@aop/identity";
 import { registerWebhookRoutes } from "./routes/webhooks.js";
+import { registerApprovalRoutes } from "./routes/approvals.js";
 import { InMemoryRawPayloadStore, type RawPayloadStore } from "./triggers/raw-payload-store.js";
+import { InMemoryApprovalContextStore, type ApprovalContextStore } from "./approvals/approval-context-store.js";
 
 export interface BuildAppOptions {
   rawPayloadStore?: RawPayloadStore;
+  approvalContextStore?: ApprovalContextStore;
+  identityResolver?: IdentityResolver;
   logger?: boolean;
 }
 
@@ -23,9 +29,14 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const app = Fastify({ logger: options.logger ?? false });
 
   const rawPayloadStore = options.rawPayloadStore ?? new InMemoryRawPayloadStore();
+  const approvalContextStore = options.approvalContextStore ?? new InMemoryApprovalContextStore();
+  // Empty by default — a real deployment injects its actual tenant
+  // principal list; local dev/tests inject their own fixtures.
+  const identityResolver = options.identityResolver ?? new LocalDevIdentityResolver([]);
 
   app.register(async (instance) => {
     await registerWebhookRoutes(instance, { rawPayloadStore });
+    await registerApprovalRoutes(instance, { approvalContextStore, identityResolver });
   });
 
   return app;
