@@ -6,6 +6,7 @@
     { "path": "packages/policy-engine" },
     { "path": "packages/context-service" },
     { "path": "packages/action-executor" },
+    { "path": "packages/identity" },
     { "path": "apps/api" },
     { "path": "apps/worker" }
   ]

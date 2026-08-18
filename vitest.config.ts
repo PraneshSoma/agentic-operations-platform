@@ -24,10 +24,16 @@ export default defineConfig({
       // unit-testable without binding a real port. app.ts (the testable
       // factory it calls into) stays covered.
       //
-      // llm-provider.ts is `export interface` only — TypeScript erases
-      // interfaces entirely at compile time, so the emitted JS module has
-      // zero executable statements. There is nothing a test could exercise.
-      exclude: ["**/*.test.ts", "apps/*/src/index.ts", "packages/contracts/src/llm-provider.ts"],
+      // llm-provider.ts / identity-resolver.ts are `export interface`/
+      // `export type` only — TypeScript erases these entirely at compile
+      // time, so the emitted JS module has zero executable statements.
+      // There is nothing a test could exercise.
+      exclude: [
+        "**/*.test.ts",
+        "apps/*/src/index.ts",
+        "packages/contracts/src/llm-provider.ts",
+        "packages/identity/src/identity-resolver.ts",
+      ],
     },
   },
 });

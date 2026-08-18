@@ -86,6 +86,12 @@ importers:
         specifier: ^5.19.1
         version: 5.22.0
 
+  packages/identity:
+    dependencies:
+      '@aop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+
   packages/policy-engine:
     dependencies:
       '@aop/contracts':

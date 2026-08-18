@@ -22,6 +22,7 @@ export * from "./schemas/verification-result.js";
 export * from "./schemas/platform-event.js";
 export * from "./schemas/investigation-result.js";
 export * from "./schemas/resolution-plan.js";
+export * from "./schemas/identity-principal.js";
 export * from "./llm-provider.js";
 
 /**
