@@ -19,7 +19,11 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["packages/**/src/**/*.ts", "apps/**/src/**/*.ts"],
-      exclude: ["**/*.test.ts"],
+      // apps/*/src/index.ts is a process entrypoint (calls .listen(),
+      // process.exit()) — no business logic to verify, and not meaningfully
+      // unit-testable without binding a real port. app.ts (the testable
+      // factory it calls into) stays covered.
+      exclude: ["**/*.test.ts", "apps/*/src/index.ts"],
     },
   },
 });
