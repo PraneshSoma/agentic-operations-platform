@@ -5,6 +5,7 @@
     { "path": "packages/evidence-ledger" },
     { "path": "packages/policy-engine" },
     { "path": "packages/context-service" },
+    { "path": "packages/action-executor" },
     { "path": "apps/api" },
     { "path": "apps/worker" }
   ]

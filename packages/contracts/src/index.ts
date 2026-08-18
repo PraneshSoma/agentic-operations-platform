@@ -21,6 +21,7 @@ export * from "./schemas/opc-match-result.js";
 export * from "./schemas/verification-result.js";
 export * from "./schemas/platform-event.js";
 export * from "./schemas/investigation-result.js";
+export * from "./schemas/resolution-plan.js";
 export * from "./llm-provider.js";
 
 /**

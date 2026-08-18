@@ -11,4 +11,5 @@ export * from "./orchestrator/execution-state-store.js";
 export * from "./orchestrator/platform-event-emitter.js";
 export * from "./orchestrator/evidence-recorder.js";
 export * from "./agents/investigator.js";
+export * from "./agents/planner.js";
 export * from "./agents/simulated-llm-provider.js";
