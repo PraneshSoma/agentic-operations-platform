@@ -1,0 +1,31 @@
+/**
+ * @aop/evidence-ledger — Prisma-backed relational core (spec §32).
+ *
+ * This package exports the generated Prisma client and its types.
+ * Repository methods live in src/repositories/ and are added by the
+ * stories that actually need them (CONTEXT.md RULE 4: every repository
+ * method takes tenant_id explicitly, no bare-ID lookups) — C-01
+ * (IdentityResolver → identity_principal), D-07 (crash-recovery →
+ * execution_step_marker), E-01/E-02 (Evidence Ledger persistence,
+ * outbox emission) are the first consumers. Nothing here yet, since a
+ * repository written ahead of its caller tends to guess at the wrong
+ * shape.
+ */
+export { PrismaClient, Prisma } from "@prisma/client";
+export type {
+  Tenant,
+  OpcDefinition,
+  ConnectorDefinition,
+  ActionDefinition,
+  IncomingRequest,
+  Execution,
+  ContextPackageRow,
+  EvidenceRow,
+  ProposedActionRow,
+  PolicyDecisionRow,
+  ActionExecutionRow,
+  VerificationRow,
+  ExecutionStepMarker,
+  OutboxEvent,
+  IdentityPrincipal,
+} from "@prisma/client";

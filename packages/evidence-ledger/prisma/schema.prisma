@@ -1,0 +1,542 @@
+// @aop/evidence-ledger — Prisma schema, the relational core (spec §32).
+//
+// Scope of this initial version (story A-03): every table backing a
+// contract that already exists in @aop/contracts (A-01 + A-02), plus the
+// three LLD-v1 §2 tables this story adds (execution_step_marker,
+// outbox_event, identity_principal). Spec §32 also lists
+// execution_state_history, investigation, resolution_plan, approval,
+// rollback, outcome, and policy_definition — deliberately NOT modeled
+// here because no Zod contract yet defines their shape; each is added
+// additively, in the Build story that defines it (B-05/B-06, C-03,
+// C-04, D-04, E-01/E-02) rather than guessed at now.
+//
+// Design notes:
+// - Nested/array shapes inside a contract (e.g. ProposedAction.risk_assessment,
+//   Evidence.content) are stored as `Json` columns rather than exploded into
+//   junction tables — the contract's Zod schema is already the validated
+//   shape for that JSON at the application boundary (CONTEXT.md RULE 1);
+//   Prisma's job is durable storage + tenant-scoped indexing, not a second
+//   relational decomposition of the same object.
+// - CONTEXT.md RULE 4: every tenant-scoped table carries tenant_id leading
+//   every unique constraint / lookup index. Three tables whose Zod contract
+//   does not carry tenant_id as a wire field (`policy_decision`,
+//   `action_execution` backing ExecutionResult, `verification` backing
+//   VerificationResult — each is reached only via a parent proposal/
+//   execution row) still get a tenant_id COLUMN here, denormalized from the
+//   parent at write time. This is a storage-only addition — it does not
+//   change the ACCEPTED Zod schemas in packages/contracts.
+// - Versioned definition tables (opc_definition, connector_definition,
+//   action_definition) use an internal `id` PK because the natural key
+//   (tenant_id, *_id, version) repeats the business id across version rows;
+//   everything else uses the domain's own string id as the Prisma id,
+//   since that id is already the identifier every other contract
+//   references by (execution_id, proposal_id, evidence_id, ...).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums (mirror the fixed Zod enums 1:1 — DB-level defense in depth,
+//    not a second source of truth; packages/contracts stays authoritative) ──
+
+enum RiskClass {
+  R0
+  R1
+  R2
+  R3
+}
+
+enum OpcStatus {
+  draft
+  published
+  retired
+}
+
+enum ExecutionStateValue {
+  RECEIVED
+  OPC_MATCHED
+  CONTEXT_ASSEMBLY
+  INVESTIGATING
+  DIAGNOSED
+  PLANNED
+  WAITING_APPROVAL
+  EXECUTING
+  EXECUTION_UNCERTAIN
+  VERIFYING
+  ROLLING_BACK
+  RESOLVED
+  ESCALATED
+  ESCALATED_HUMAN_OVERRIDE
+  FAILED
+}
+
+enum ConnectorType {
+  logs
+  metrics
+  database
+  api
+  knowledge
+}
+
+enum CompensationClass {
+  REVERSIBLE
+  COMPENSATABLE
+  IRREVERSIBLE
+}
+
+enum ReliabilityLevel {
+  LOW
+  MEDIUM
+  HIGH
+  AUTHORITATIVE
+}
+
+enum ActionStatus {
+  active
+  disabled
+}
+
+enum EvidenceType {
+  REQUEST
+  CONTEXT
+  OBSERVATION
+  HYPOTHESIS
+  PLAN
+  APPROVAL
+  ACTION_RESULT
+  VERIFICATION
+  ROLLBACK
+  OUTCOME
+}
+
+enum RetentionClass {
+  operational_state
+  prompts
+  evidence_record
+  secrets_redacted_payload
+  audit_hash
+}
+
+enum PolicyOutcome {
+  ALLOW
+  REQUIRE_APPROVAL
+  DENY
+}
+
+enum HardDenyReasonCode {
+  UNREGISTERED_ACTION
+  TENANT_MISMATCH
+  EXPIRED_AUTHORIZATION
+  PROHIBITED_ENVIRONMENT
+  MISSING_REQUIRED_EVIDENCE
+  KILL_SWITCH_ACTIVE
+  IMMUTABLE_POLICY_VIOLATION
+  POLICY_EVALUATION_FAILED
+}
+
+enum ExecutionResultStatus {
+  SUCCESS
+  FAILED
+  PARTIAL
+  TIMED_OUT
+}
+
+enum VerificationOverall {
+  VERIFIED
+  FAILED
+  INCONCLUSIVE
+}
+
+enum RecommendedNextStep {
+  CLOSE
+  ROLLBACK
+  ESCALATE
+}
+
+enum MarkerStatus {
+  ATTEMPTED
+  COMPLETED
+}
+
+// ── Tenant ──
+
+model Tenant {
+  id                            String    @id
+  name                          String
+  // LLD-v1 §2, ADR-011: unified activation gate.
+  retention_policy_confirmed_at DateTime?
+  production_activated_at       DateTime?
+  created_at                    DateTime  @default(now())
+
+  @@map("tenant")
+}
+
+// ── Registry / definition tables (spec §32) ──
+
+/// Backs OperationalProcedureContract (spec §4.2).
+model OpcDefinition {
+  id        String    @id @default(cuid())
+  opc_id    String
+  version   String
+  tenant_id String
+  name      String
+  status    OpcStatus
+
+  match            Json
+  required_context Json
+  investigation    Json
+  actions          Json
+  verification     Json
+  escalation       Json
+  rollback         Json
+  timeout          Json
+  budget           Json
+
+  created_at DateTime @default(now())
+
+  @@unique([tenant_id, opc_id, version])
+  @@index([tenant_id])
+  @@map("opc_definition")
+}
+
+/// Backs ConnectorDescriptor (spec §10).
+model ConnectorDefinition {
+  id           String        @id @default(cuid())
+  connector_id String
+  tenant_id    String
+  type         ConnectorType
+
+  operations    Json
+  authorization Json
+  scopes        Json
+  staleness     Json
+
+  // Additive — LLD-v1 §2, OI-REQ-10, ADR-004, ADR-007.
+  definition_version   String
+  supports_correlation Boolean          @default(false)
+  is_idempotent        Boolean          @default(false)
+  reliability_level    ReliabilityLevel
+
+  created_at DateTime @default(now())
+
+  @@unique([tenant_id, connector_id, definition_version])
+  @@index([tenant_id])
+  @@map("connector_definition")
+}
+
+/// Backs ActionDefinition (spec §13).
+model ActionDefinition {
+  id        String @id @default(cuid())
+  action_id String
+  version   String
+  tenant_id String
+
+  name        String
+  description String
+
+  executor_connector_ref String
+  operation              String
+
+  input_schema Json
+
+  default_risk_class  RiskClass
+  blast_radius        Json
+  reversible          Boolean
+  rollback_action_ref String?
+
+  environment_constraints Json
+  policy_tags             String[]
+  status                  ActionStatus
+
+  // Additive — LLD-v1 §2, ADR-001/003. reversible/compensation_class
+  // consistency is enforced at the application boundary by
+  // ActionDefinitionSchema's .refine() (packages/contracts) — not
+  // re-enforced at the DB layer, per ADR-001's LLD constraint (§1) that
+  // ActionConnector.validateAction() is the single enforcement point.
+  compensation_class CompensationClass
+  risk_scoring_ref   String?
+
+  created_at DateTime @default(now())
+
+  @@unique([tenant_id, action_id, version])
+  @@index([tenant_id])
+  @@map("action_definition")
+}
+
+// ── Runtime flow tables (spec §32) ──
+
+/// Backs IncomingRequest (spec §4.1).
+model IncomingRequest {
+  request_id String @id
+  tenant_id  String
+
+  source          Json
+  received_at     DateTime
+  requester       Json
+  subject         String
+  description     String
+  labels          Json
+  raw_payload_ref String
+  correlation     Json
+
+  @@index([tenant_id])
+  @@map("incoming_request")
+}
+
+/// Backs ExecutionState (spec §7). Table name is `execution` per spec §32.
+model Execution {
+  execution_id String @id
+  tenant_id    String
+  request_id   String
+
+  opc_id      String
+  opc_version String
+
+  state ExecutionStateValue
+
+  context_package_ref String?
+  proposal_ids        String[]
+  current_proposal_id String?
+  retry_count         Int
+
+  budget_consumed Json
+
+  created_at DateTime
+  updated_at DateTime
+
+  @@index([tenant_id])
+  @@index([tenant_id, request_id])
+  @@map("execution")
+}
+
+/// Backs ContextPackage (spec §8-9).
+model ContextPackageRow {
+  context_package_id String @id
+  tenant_id          String
+  request_id         String
+  opc_id             String
+
+  assembled_at DateTime
+
+  application_context Json
+  runtime_context     Json
+  historical_evidence Json
+  missing_context     Json
+  // Additive sibling to missing_context — spec §10's staleness note.
+  stale_context       Json
+  provenance          Json
+
+  @@index([tenant_id])
+  @@map("context_package")
+}
+
+/// Backs Evidence (spec §4.6, §21) — append-only; corrections insert a new
+/// row referencing the superseded one via relationships.supersedes, never
+/// an UPDATE.
+model EvidenceRow {
+  evidence_id  String @id
+  tenant_id    String
+  request_id   String
+  execution_id String
+
+  type EvidenceType
+
+  source        Json
+  content       Json
+  relationships Json
+  integrity     Json
+
+  retention_class          RetentionClass
+  // Additive — LLD-v1 §2, ADR-011. What an actual deletion/archival job
+  // runs against — a class name alone enforces nothing.
+  retention_expires_at     DateTime
+  retention_policy_version String
+  legal_hold               Boolean        @default(false)
+
+  @@index([tenant_id, execution_id])
+  @@map("evidence")
+}
+
+/// Backs ProposedAction (spec §4.3, §1.2).
+model ProposedActionRow {
+  proposal_id  String @id
+  request_id   String
+  execution_id String
+  tenant_id    String
+
+  action_ref     String
+  action_version String
+
+  reason           String
+  parameters       Json
+  expected_outcome String
+
+  // 5-component blast_radius (LLD-v1 §2, ADR-003) lives inside this Json
+  // alongside requested_risk_class/reversible — see ProposedActionSchema.
+  risk_assessment Json
+
+  supporting_evidence_ids String[]
+  generated_by            Json
+
+  // Additive — LLD-v1 §5, ADR-012.
+  accountable_principal_id String
+
+  created_at DateTime
+
+  @@index([tenant_id, execution_id])
+  @@map("proposed_action")
+}
+
+/// Backs PolicyDecision (spec §4.4, §16). tenant_id is a storage-only
+/// column (see file header) — PolicyDecisionSchema itself has no
+/// tenant_id wire field; it is reached only via proposal_id.
+model PolicyDecisionRow {
+  decision_id String @id
+  tenant_id   String
+  proposal_id String
+
+  policy_version       String
+  effective_risk_class RiskClass
+  outcome              PolicyOutcome
+  approval_route       String?
+
+  reasons          Json
+  evidence_summary Json
+
+  // Additive — LLD-v1 §2/§3, ADR-008.
+  hard_deny_reason_code                 HardDenyReasonCode?
+  hard_deny_detail                      String?
+  // Additive — LLD-v1 §2/§5, ADR-012. Computed at policy evaluation,
+  // consumed later at the Approval Acceptance Gate (LLD-v1 §5).
+  requires_proposer_approver_separation Boolean
+
+  created_at DateTime
+
+  @@index([tenant_id, proposal_id])
+  @@map("policy_decision")
+}
+
+/// Backs ExecutionResult (spec §4.5). Table name is `action_execution` per
+/// spec §32. tenant_id is storage-only (see file header).
+model ActionExecutionRow {
+  execution_result_id String @id
+  tenant_id           String
+  proposal_id         String
+
+  action_ref   String
+  started_at   DateTime
+  completed_at DateTime
+
+  status             ExecutionResultStatus
+  provider_reference String?
+  output_summary     String
+
+  side_effects Json
+  error        Json
+
+  rollback_available Boolean
+
+  // Additive — LLD-v1 §0, OI-REQ-10. Build-time-injected constant
+  // (container image's git SHA); never computed at runtime.
+  executor_build_hash String
+
+  @@index([tenant_id, proposal_id])
+  @@map("action_execution")
+}
+
+/// Backs VerificationResult (spec §19). tenant_id is storage-only (see
+/// file header).
+model VerificationRow {
+  verification_id     String @id
+  tenant_id           String
+  execution_result_id String
+
+  checks                Json
+  overall               VerificationOverall
+  recommended_next_step RecommendedNextStep
+
+  @@index([tenant_id, execution_result_id])
+  @@map("verification")
+}
+
+// ── New LLD-v1 §2 tables (story A-03) ──
+
+/// ADR-004's write-ahead marker. operation_id is STABLE per
+/// (tenant_id, execution_id, step_id) — deterministically derived, reused
+/// across retries, so it is a real idempotency key, not a log entry.
+/// status -> COMPLETED is written in the same transaction as the
+/// ExecutionState transition to VERIFYING and the Evidence write
+/// (ADR-005's same-transaction pattern) — enforced at the repository call
+/// site (src/repositories), not expressible as a DB constraint here.
+model ExecutionStepMarker {
+  id           String @id @default(cuid())
+  tenant_id    String
+  execution_id String
+  step_id      String
+  operation_id String
+
+  action_ref        String
+  action_version    String
+  connector_ref     String
+  connector_version String
+
+  attempt_number Int
+  status         MarkerStatus
+
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+  completed_at DateTime?
+
+  @@unique([tenant_id, execution_id, step_id, operation_id])
+  @@map("execution_step_marker")
+}
+
+/// ADR-005's outbox. event_id (not the internal `id`) is what consumers
+/// dedupe on. The relay's poll query needs
+/// `WHERE tenant_id = ? AND available_at <= now() AND published_at IS NULL`
+/// — Prisma's schema DSL has no partial-index syntax, so the migration SQL
+/// is hand-edited post-generation to add `WHERE published_at IS NULL` to
+/// the (tenant_id, available_at) index (see migration.sql comment).
+model OutboxEvent {
+  id           String @id @default(cuid())
+  tenant_id    String
+  event_id     String @unique
+  execution_id String
+
+  event_type           String
+  aggregate_type       String
+  aggregate_id         String
+  aggregate_version    Int
+  event_schema_version String
+
+  payload Json
+
+  available_at      DateTime  @default(now())
+  created_at        DateTime  @default(now())
+  published_at      DateTime?
+  delivery_attempts Int       @default(0)
+  last_error        String?
+
+  @@index([tenant_id, available_at])
+  @@map("outbox_event")
+}
+
+/// ADR-012's local IdentityResolver backing store.
+model IdentityPrincipal {
+  id                       String   @id @default(cuid())
+  tenant_id                String
+  display_name             String
+  roles                    String[]
+  // Additive — ADR-012. Dev principals must be clearly labeled
+  // non-production; checked at the tenant activation gate (LLD-v1 §6).
+  is_development_principal Boolean  @default(false)
+  created_at               DateTime @default(now())
+
+  @@index([tenant_id])
+  @@map("identity_principal")
+}
