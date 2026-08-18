@@ -9,6 +9,7 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@aop/contracts": "workspace:*"
+    "@aop/contracts": "workspace:*",
+    "@aop/secrets": "workspace:*"
   }
 }

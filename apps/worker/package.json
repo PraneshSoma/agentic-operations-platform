@@ -8,6 +8,11 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@aop/contracts": "workspace:*"
+    "@aop/contracts": "workspace:*",
+    "@aop/action-executor": "workspace:*",
+    "@aop/context-service": "workspace:*",
+    "@aop/identity": "workspace:*",
+    "@aop/policy-engine": "workspace:*",
+    "@aop/secrets": "workspace:*"
   }
 }

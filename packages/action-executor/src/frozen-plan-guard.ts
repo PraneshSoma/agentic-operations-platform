@@ -1,4 +1,5 @@
 import type { ResolutionPlan, ResolutionPlanStep } from "@aop/contracts";
+import { deepEqual } from "./deep-equal.js";
 
 /**
  * Thrown when a requested execution step doesn't correspond to any step
@@ -76,21 +77,6 @@ export function assertMatchesFrozenPlan(approvedPlan: ResolutionPlan, requested:
   if (!deepEqual(approvedStep.parameters, requested.parameters)) {
     throw new ParameterChangedError(requested.step_id, approvedStep.parameters, requested.parameters);
   }
-}
-
-function deepEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (a === null || b === null || typeof a !== "object" || typeof b !== "object") return false;
-
-  if (Array.isArray(a) || Array.isArray(b)) {
-    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
-    return a.every((item, i) => deepEqual(item, b[i]));
-  }
-
-  const aKeys = Object.keys(a as Record<string, unknown>);
-  const bKeys = Object.keys(b as Record<string, unknown>);
-  if (aKeys.length !== bKeys.length) return false;
-  return aKeys.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
 }
 
 /** Re-exported for step-shape convenience at call sites. */

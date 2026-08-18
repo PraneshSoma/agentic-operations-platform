@@ -57,15 +57,33 @@ importers:
 
   apps/worker:
     dependencies:
+      '@aop/action-executor':
+        specifier: workspace:*
+        version: link:../../packages/action-executor
+      '@aop/context-service':
+        specifier: workspace:*
+        version: link:../../packages/context-service
       '@aop/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@aop/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
+      '@aop/policy-engine':
+        specifier: workspace:*
+        version: link:../../packages/policy-engine
+      '@aop/secrets':
+        specifier: workspace:*
+        version: link:../../packages/secrets
 
   packages/action-executor:
     dependencies:
       '@aop/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@aop/secrets':
+        specifier: workspace:*
+        version: link:../secrets
 
   packages/context-service:
     dependencies:
