@@ -1,9 +1,10 @@
-import type { ActionDefinition } from "@aop/contracts";
+import { ActionDefinitionSchema, type ActionDefinition } from "@aop/contracts";
 
 /**
  * ActionRegistry — spec §13's registry mechanics (story C-02: "registry
  * mechanics only" — the full ActionConnector interface + connector
- * invocation lands in D-01).
+ * invocation lands in D-01; the three-class compensation validation at
+ * registration lands in D-04).
  *
  * RULE 8 / this story's second acceptance criterion: this file contains
  * ZERO conditional logic keyed on action kind, `executor_connector_ref`
@@ -30,8 +31,22 @@ function key(tenantId: string, actionRef: string, version: string): string {
 export class InMemoryActionRegistry implements ActionRegistry {
   private readonly actions = new Map<string, ActionDefinition>();
 
+  /**
+   * Every action is re-run through ActionDefinitionSchema.parse() here —
+   * story D-04's first acceptance criterion ("the three-class distinction
+   * present and validated at registration," ADR-001/F-14). The schema's
+   * own `.refine()` already encodes the reversible/compensation_class
+   * invariant; parsing it here, at the one choke point every action (of
+   * either kind, per RULE 8 above) must pass through to become findable
+   * at all, is what makes that invariant actually enforced rather than
+   * merely expressible. A caller passing an inconsistent pair — even one
+   * that structurally satisfies the ActionDefinition TypeScript type,
+   * since the type alone can't encode a cross-field refinement — gets a
+   * thrown ZodError instead of a silently-registered, ungoverned action.
+   */
   register(action: ActionDefinition): void {
-    this.actions.set(key(action.tenant_id, action.action_id, action.version), action);
+    const validated = ActionDefinitionSchema.parse(action);
+    this.actions.set(key(validated.tenant_id, validated.action_id, validated.version), validated);
   }
 
   lookup(tenantId: string, actionRef: string, version: string): ActionDefinition | undefined {

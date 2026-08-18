@@ -6,8 +6,10 @@ import { z } from "zod";
  * alongside the spec-literal `reversible` boolean, never replacing it — see
  * RULE in ADR-001: reversible: true requires compensation_class: REVERSIBLE;
  * reversible: false requires COMPENSATABLE or IRREVERSIBLE. Enforced at
- * registration by ActionConnector.validateAction(), not by this schema
- * alone (Zod's cross-field refinement is used here for the same effect).
+ * registration (story D-04): ActionRegistry.register() runs every action
+ * through this schema's `.parse()` before storing it, so an inconsistent
+ * pair can never reach the registry at all — not by ActionConnector, which
+ * only sees actions the registry has already accepted.
  */
 export const ActionDefinitionSchema = z
   .object({

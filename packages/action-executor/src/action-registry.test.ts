@@ -102,6 +102,16 @@ describe("InMemoryActionRegistry", () => {
     expect(resolvedEngChange?.executor_connector_ref).toBe("engineering-change-executor");
   });
 
+  it("CRITICAL (D-04, ADR-001): register() rejects an inconsistent reversible/compensation_class pair — the invariant is enforced at registration, not merely expressible in the type", () => {
+    const registry = new InMemoryActionRegistry();
+    // Structurally satisfies the ActionDefinition TS type (the cross-field
+    // refinement isn't checkable at compile time) but violates ADR-001:
+    // reversible: true requires compensation_class: REVERSIBLE.
+    const inconsistent = operationalAction({ reversible: true, compensation_class: "IRREVERSIBLE" });
+    expect(() => registry.register(inconsistent)).toThrow();
+    expect(registry.lookup("tenant_1", inconsistent.action_id, inconsistent.version)).toBeUndefined();
+  });
+
   it("re-registering the same (tenant_id, action_ref, version) overwrites — the registry is not append-only", () => {
     const registry = new InMemoryActionRegistry();
     registry.register(operationalAction({ status: "active" }));
