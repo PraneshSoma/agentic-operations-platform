@@ -1,15 +1,20 @@
 /**
  * @aop/contracts — shared domain contracts for the Agentic Operations Platform.
  *
- * Placeholder. Phase 3 of the loop (Build) populates this package with one
- * Zod schema + inferred TS type per domain contract from
- * requirements/AOP-001-agentic-operations-platform.md §4 — IncomingRequest,
- * OperationalProcedureContract, ProposedAction, PolicyDecision,
- * ExecutionResult, Evidence, and the supporting contracts in §7-18 — each
- * re-exported from this barrel. See CONTEXT.md "Package layout" and
- * loop/agents/planning.md for the shape every new schema file should follow.
- *
- * This export exists only so the workspace has something real to build, lint,
- * and test before the first story lands.
+ * One Zod schema + inferred TS type per domain contract, re-exported here.
+ * No logic beyond schema + type + narrow helper validators — every other
+ * package imports from this one; this one imports from none.
+ */
+export * from "./schemas/incoming-request.js";
+export * from "./schemas/operational-procedure-contract.js";
+export * from "./schemas/proposed-action.js";
+export * from "./schemas/policy-decision.js";
+export * from "./schemas/execution-result.js";
+export * from "./schemas/evidence.js";
+
+/**
+ * Retained from the pre-Build scaffold — proved the workspace toolchain
+ * (build/lint/test) before any real contract existed. Harmless to keep; a
+ * future story may retire it once nothing references it as a signal.
  */
 export const CONTRACTS_PACKAGE_SCAFFOLD = true;

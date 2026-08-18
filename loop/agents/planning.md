@@ -91,6 +91,14 @@ fields displayed, per §27-28.
   },
   "style_reference": "<an existing file new code should match, or null pre-first-story per CONTEXT.md>",
   "spec_refs": ["<spec section numbers this story implements, e.g. '§14A', '§7B'>"],
+  "contracts": [ {
+    "name": "<PascalCase contract name, e.g. ProposedAction>",
+    "file": "<packages/contracts/src/schemas/<kebab-case>.ts>", "is_new": true,
+    "fields": [ { "name": "<name>", "type": "<zod type, e.g. z.string(), z.enum([...])>",
+                  "optional": false, "notes": "<spec section this field traces to>" } ],
+    "additive_fields": [ "<fields added beyond the original spec YAML by an ADR/LLD decision — called out separately so codegen doesn't mistake them for spec-literal>" ],
+    "references": [ "<other contract names this one composes, e.g. 'references ProposedAction.proposal_id'>" ]
+  } ],
   "tables": [ {
     "name": "<name>", "operation": "<READ | WRITE | READ_WRITE>", "is_new": true,
     "key": { "field": "<name>", "type": "<type>" },

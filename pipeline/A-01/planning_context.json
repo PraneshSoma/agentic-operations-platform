@@ -1,0 +1,219 @@
+{
+  "story_id": "A-01",
+  "story_type": "CONTRACT",
+  "modules": {
+    "contracts": "packages/contracts/src",
+    "context_service": "packages/context-service/src",
+    "policy_engine": "packages/policy-engine/src",
+    "action_executor": "packages/action-executor/src",
+    "evidence_ledger": "packages/evidence-ledger/src",
+    "api": "apps/api/src",
+    "worker": "apps/worker/src",
+    "dashboard": "apps/dashboard/src",
+    "test": "colocated *.test.ts next to each schema file"
+  },
+  "style_reference": null,
+  "style_reference_note": "First CONTRACT story in the repo — packages/contracts/src/index.ts's scaffold placeholder is the only prior art, and it's explicitly not a real schema. null per CONTEXT.md's own instruction for the first story of its kind.",
+  "spec_refs": [
+    "§4.1 IncomingRequest", "§4.2 OperationalProcedureContract", "§4.3 ProposedAction",
+    "§4.4 PolicyDecision", "§4.5 ExecutionResult", "§4.6 Evidence",
+    "LLD-v1 §0 (OI-REQ-10 version-binding fields)", "LLD-v1 §2 (schema deltas)",
+    "LLD-v1 §3 (hard_deny_reason_code/detail)", "LLD-v1 §5 (accountable_principal_id)",
+    "ADR-001 (compensation_class pattern)", "ADR-003 (blast_radius components)",
+    "ADR-008 (hard-deny structured reason)", "ADR-011 (retention fields)", "ADR-012 (identity attribution)"
+  ],
+  "contracts": [
+    {
+      "name": "IncomingRequest",
+      "file": "packages/contracts/src/schemas/incoming-request.ts",
+      "is_new": true,
+      "fields": [
+        { "name": "request_id", "type": "z.string()", "optional": false, "notes": "§4.1" },
+        { "name": "tenant_id", "type": "z.string()", "optional": false, "notes": "§4.1, RULE 4 invariant" },
+        { "name": "source.type", "type": "z.enum(['slack','servicenow','pagerduty','email','webhook'])", "optional": false, "notes": "§4.1" },
+        { "name": "source.source_id", "type": "z.string()", "optional": false, "notes": "§4.1" },
+        { "name": "source.source_reference", "type": "z.string()", "optional": false, "notes": "§4.1" },
+        { "name": "received_at", "type": "z.string().datetime()", "optional": false, "notes": "§4.1" },
+        { "name": "requester.id", "type": "z.string()", "optional": false, "notes": "§4.1" },
+        { "name": "requester.display_name", "type": "z.string()", "optional": true, "notes": "§4.1" },
+        { "name": "requester.roles", "type": "z.array(z.string())", "optional": false, "notes": "§4.1" },
+        { "name": "subject", "type": "z.string()", "optional": false, "notes": "§4.1" },
+        { "name": "description", "type": "z.string()", "optional": false, "notes": "§4.1" },
+        { "name": "labels.severity", "type": "z.string()", "optional": true, "notes": "§4.1" },
+        { "name": "labels.application", "type": "z.string()", "optional": true, "notes": "§4.1" },
+        { "name": "labels.environment", "type": "z.string()", "optional": true, "notes": "§4.1" },
+        { "name": "labels.category", "type": "z.string()", "optional": true, "notes": "§4.1" },
+        { "name": "raw_payload_ref", "type": "z.string()", "optional": false, "notes": "§4.1 — reference only, never the raw payload itself, per Rules" },
+        { "name": "correlation.incident_id", "type": "z.string()", "optional": true, "notes": "§4.1" },
+        { "name": "correlation.ticket_id", "type": "z.string()", "optional": true, "notes": "§4.1" },
+        { "name": "correlation.conversation_id", "type": "z.string()", "optional": true, "notes": "§4.1" }
+      ],
+      "additive_fields": [],
+      "references": []
+    },
+    {
+      "name": "OperationalProcedureContract",
+      "file": "packages/contracts/src/schemas/operational-procedure-contract.ts",
+      "is_new": true,
+      "fields": [
+        { "name": "opc_id", "type": "z.string()", "optional": false, "notes": "§4.2" },
+        { "name": "version", "type": "z.string()", "optional": false, "notes": "§4.2 — immutable once published, spec §3.1" },
+        { "name": "tenant_id", "type": "z.string()", "optional": false, "notes": "§4.2, RULE 4" },
+        { "name": "name", "type": "z.string()", "optional": false, "notes": "§4.2" },
+        { "name": "status", "type": "z.enum(['draft','published','retired'])", "optional": false, "notes": "§4.2" },
+        { "name": "match.categories", "type": "z.array(z.string())", "optional": false, "notes": "§4.2" },
+        { "name": "match.applications", "type": "z.array(z.string())", "optional": false, "notes": "§4.2" },
+        { "name": "match.severities", "type": "z.array(z.string())", "optional": false, "notes": "§4.2" },
+        { "name": "match.semantic_description", "type": "z.string()", "optional": true, "notes": "§4.2 — feeds the §6A margin guardrail's semantic fallback" },
+        { "name": "required_context", "type": "z.array(z.object({ context_type: z.enum(['application','runtime','evidence']), connector_ref: z.string(), operation: z.string(), required: z.boolean(), timeout_ms: z.number().int() }))", "optional": false, "notes": "§4.2" },
+        { "name": "investigation.objective", "type": "z.string()", "optional": false, "notes": "§4.2" },
+        { "name": "investigation.required_checks", "type": "z.array(z.string())", "optional": false, "notes": "§4.2" },
+        { "name": "investigation.max_hypotheses", "type": "z.number().int()", "optional": false, "notes": "§4.2" },
+        { "name": "actions.allowed_action_refs", "type": "z.array(z.string())", "optional": false, "notes": "§4.2" },
+        { "name": "verification.checks", "type": "z.array(z.object({ name: z.string(), connector_ref: z.string(), operation: z.string(), success_condition: z.string() }))", "optional": false, "notes": "§4.2" },
+        { "name": "escalation.conditions", "type": "z.array(z.object({ type: z.string(), threshold: z.unknown() }))", "optional": false, "notes": "§4.2" },
+        { "name": "rollback.required_for_risk_levels", "type": "z.array(z.enum(['R2','R3']))", "optional": false, "notes": "§4.2" },
+        { "name": "rollback.action_ref", "type": "z.string()", "optional": true, "notes": "§4.2" },
+        { "name": "timeout.investigation_minutes", "type": "z.number().int()", "optional": false, "notes": "§4.2" },
+        { "name": "timeout.approval_minutes", "type": "z.number().int()", "optional": false, "notes": "§4.2" },
+        { "name": "timeout.execution_minutes", "type": "z.number().int()", "optional": false, "notes": "§4.2" },
+        { "name": "budget.max_investigation_tokens", "type": "z.number().int()", "optional": false, "notes": "§4.2, §7B" },
+        { "name": "budget.max_planning_tokens", "type": "z.number().int()", "optional": false, "notes": "§4.2, §7B" },
+        { "name": "budget.max_tool_calls", "type": "z.number().int()", "optional": false, "notes": "§4.2, §7B" },
+        { "name": "budget.max_wall_clock_minutes", "type": "z.number().int()", "optional": false, "notes": "§4.2, §7B" },
+        { "name": "budget.on_exceeded", "type": "z.enum(['ESCALATE','STOP_AND_SUMMARIZE']).default('ESCALATE')", "optional": false, "notes": "§4.2, §7B — default ESCALATE per spec" }
+      ],
+      "additive_fields": [],
+      "references": []
+    },
+    {
+      "name": "ProposedAction",
+      "file": "packages/contracts/src/schemas/proposed-action.ts",
+      "is_new": true,
+      "fields": [
+        { "name": "proposal_id", "type": "z.string()", "optional": false, "notes": "§4.3" },
+        { "name": "request_id", "type": "z.string()", "optional": false, "notes": "§4.3" },
+        { "name": "execution_id", "type": "z.string()", "optional": false, "notes": "§4.3" },
+        { "name": "tenant_id", "type": "z.string()", "optional": false, "notes": "§4.3, RULE 4" },
+        { "name": "action_ref", "type": "z.string()", "optional": false, "notes": "§4.3" },
+        { "name": "action_version", "type": "z.string()", "optional": false, "notes": "§4.3 — F-20 version binding" },
+        { "name": "reason", "type": "z.string()", "optional": false, "notes": "§4.3" },
+        { "name": "parameters", "type": "z.record(z.string(), z.unknown())", "optional": false, "notes": "§4.3" },
+        { "name": "expected_outcome", "type": "z.string()", "optional": false, "notes": "§4.3" },
+        { "name": "risk_assessment.requested_risk_class", "type": "z.enum(['R0','R1','R2','R3'])", "optional": false, "notes": "§4.3, §15" },
+        { "name": "risk_assessment.blast_radius.scope", "type": "z.string()", "optional": false, "notes": "§4.3" },
+        { "name": "risk_assessment.blast_radius.estimated_entities", "type": "z.number().int()", "optional": true, "notes": "§4.3" },
+        { "name": "risk_assessment.reversible", "type": "z.boolean()", "optional": false, "notes": "§4.3 — kept alongside compensation_class per ADR-001 Option B" },
+        { "name": "supporting_evidence_ids", "type": "z.array(z.string())", "optional": false, "notes": "§4.3" },
+        { "name": "generated_by.agent", "type": "z.string()", "optional": false, "notes": "§4.3" },
+        { "name": "generated_by.model", "type": "z.string()", "optional": false, "notes": "§4.3" },
+        { "name": "generated_by.prompt_version", "type": "z.string()", "optional": false, "notes": "§4.3" },
+        { "name": "created_at", "type": "z.string().datetime()", "optional": false, "notes": "§4.3" }
+      ],
+      "additive_fields": [
+        { "name": "risk_assessment.blast_radius.environmental_criticality", "type": "z.string()", "optional": true, "notes": "LLD §2, ADR-003 — 1 of 5 blast-radius components" },
+        { "name": "risk_assessment.blast_radius.compensation_class", "type": "z.enum(['REVERSIBLE','COMPENSATABLE','IRREVERSIBLE'])", "optional": true, "notes": "LLD §2, ADR-003 — reused from ActionDefinition's field (ADR-001), not re-derived here; optional because not every action kind populates it yet in A-01's scope" },
+        { "name": "risk_assessment.blast_radius.data_sensitivity", "type": "z.string()", "optional": true, "notes": "LLD §2, ADR-003" },
+        { "name": "risk_assessment.blast_radius.customer_exposure", "type": "z.string()", "optional": true, "notes": "LLD §2, ADR-003" },
+        { "name": "accountable_principal_id", "type": "z.string()", "optional": false, "notes": "LLD §5, ADR-012 — resolved via IdentityResolver (built in story C-01); required, but C-01 hasn't run yet, so this field exists in the schema now and gets populated once C-01 lands. Distinct from generated_by.agent/model." }
+      ],
+      "references": []
+    },
+    {
+      "name": "PolicyDecision",
+      "file": "packages/contracts/src/schemas/policy-decision.ts",
+      "is_new": true,
+      "fields": [
+        { "name": "decision_id", "type": "z.string()", "optional": false, "notes": "§4.4" },
+        { "name": "proposal_id", "type": "z.string()", "optional": false, "notes": "§4.4 — references ProposedAction.proposal_id" },
+        { "name": "policy_version", "type": "z.string()", "optional": false, "notes": "§4.4 — F-20 version binding" },
+        { "name": "effective_risk_class", "type": "z.enum(['R0','R1','R2','R3'])", "optional": false, "notes": "§4.4" },
+        { "name": "outcome", "type": "z.enum(['ALLOW','REQUIRE_APPROVAL','DENY'])", "optional": false, "notes": "§4.4, §16, ADR-008 — three-valued, DENY is first-class" },
+        { "name": "approval_route", "type": "z.string()", "optional": true, "notes": "§4.4" },
+        { "name": "reasons", "type": "z.array(z.object({ rule_id: z.string(), explanation: z.string() }))", "optional": false, "notes": "§4.4" },
+        { "name": "evidence_summary.precedent_count", "type": "z.number().int()", "optional": false, "notes": "§4.4" },
+        { "name": "evidence_summary.verified_success_count", "type": "z.number().int()", "optional": false, "notes": "§4.4" },
+        { "name": "evidence_summary.rollback_count", "type": "z.number().int()", "optional": false, "notes": "§4.4" },
+        { "name": "evidence_summary.failure_count", "type": "z.number().int()", "optional": false, "notes": "§4.4" },
+        { "name": "created_at", "type": "z.string().datetime()", "optional": false, "notes": "§4.4" }
+      ],
+      "additive_fields": [
+        { "name": "hard_deny_reason_code", "type": "z.enum(['UNREGISTERED_ACTION','TENANT_MISMATCH','EXPIRED_AUTHORIZATION','PROHIBITED_ENVIRONMENT','MISSING_REQUIRED_EVIDENCE','KILL_SWITCH_ACTIVE','IMMUTABLE_POLICY_VIOLATION','POLICY_EVALUATION_FAILED'])", "optional": true, "notes": "LLD §2/§3, ADR-008 — set only when outcome: DENY originates from the fixed hard-deny list, never a tenant rule" },
+        { "name": "hard_deny_detail", "type": "z.string()", "optional": true, "notes": "LLD §3 — sanitized, human-readable; non-blocking correction from LLD review" },
+        { "name": "requires_proposer_approver_separation", "type": "z.boolean()", "optional": false, "notes": "LLD §2/§5, ADR-012 — computed at policy evaluation, consumed later by the Approval Acceptance Gate (story C-04), not enforced here" }
+      ],
+      "references": ["ProposedAction (via proposal_id)"]
+    },
+    {
+      "name": "ExecutionResult",
+      "file": "packages/contracts/src/schemas/execution-result.ts",
+      "is_new": true,
+      "fields": [
+        { "name": "execution_result_id", "type": "z.string()", "optional": false, "notes": "§4.5" },
+        { "name": "proposal_id", "type": "z.string()", "optional": false, "notes": "§4.5 — references ProposedAction.proposal_id" },
+        { "name": "action_ref", "type": "z.string()", "optional": false, "notes": "§4.5" },
+        { "name": "started_at", "type": "z.string().datetime()", "optional": false, "notes": "§4.5" },
+        { "name": "completed_at", "type": "z.string().datetime()", "optional": false, "notes": "§4.5" },
+        { "name": "status", "type": "z.enum(['SUCCESS','FAILED','PARTIAL','TIMED_OUT'])", "optional": false, "notes": "§4.5" },
+        { "name": "provider_reference", "type": "z.string()", "optional": true, "notes": "§4.5" },
+        { "name": "output_summary", "type": "z.string()", "optional": false, "notes": "§4.5" },
+        { "name": "side_effects.entities_changed", "type": "z.number().int()", "optional": true, "notes": "§4.5" },
+        { "name": "side_effects.systems_touched", "type": "z.array(z.string())", "optional": false, "notes": "§4.5" },
+        { "name": "error.code", "type": "z.string()", "optional": true, "notes": "§4.5" },
+        { "name": "error.message", "type": "z.string()", "optional": true, "notes": "§4.5" },
+        { "name": "rollback_available", "type": "z.boolean()", "optional": false, "notes": "§4.5" }
+      ],
+      "additive_fields": [
+        { "name": "executor_build_hash", "type": "z.string()", "optional": false, "notes": "LLD §0, OI-REQ-10 — populated from a build-time-injected constant (container image git SHA), never computed at runtime" }
+      ],
+      "references": ["ProposedAction (via proposal_id)"]
+    },
+    {
+      "name": "Evidence",
+      "file": "packages/contracts/src/schemas/evidence.ts",
+      "is_new": true,
+      "fields": [
+        { "name": "evidence_id", "type": "z.string()", "optional": false, "notes": "§4.6" },
+        { "name": "tenant_id", "type": "z.string()", "optional": false, "notes": "§4.6, RULE 4" },
+        { "name": "request_id", "type": "z.string()", "optional": false, "notes": "§4.6" },
+        { "name": "execution_id", "type": "z.string()", "optional": false, "notes": "§4.6" },
+        { "name": "type", "type": "z.enum(['REQUEST','CONTEXT','OBSERVATION','HYPOTHESIS','PLAN','APPROVAL','ACTION_RESULT','VERIFICATION','ROLLBACK','OUTCOME'])", "optional": false, "notes": "§4.6" },
+        { "name": "source.component", "type": "z.string()", "optional": false, "notes": "§4.6" },
+        { "name": "source.connector_ref", "type": "z.string()", "optional": true, "notes": "§4.6" },
+        { "name": "source.source_reference", "type": "z.string()", "optional": true, "notes": "§4.6" },
+        { "name": "content.summary", "type": "z.string()", "optional": false, "notes": "§4.6" },
+        { "name": "content.structured_data", "type": "z.record(z.string(), z.unknown())", "optional": true, "notes": "§4.6" },
+        { "name": "relationships.supports", "type": "z.array(z.string())", "optional": true, "notes": "§4.6" },
+        { "name": "relationships.contradicts", "type": "z.array(z.string())", "optional": true, "notes": "§4.6" },
+        { "name": "relationships.derived_from", "type": "z.array(z.string())", "optional": true, "notes": "§4.6" },
+        { "name": "relationships.supersedes", "type": "z.string()", "optional": true, "notes": "§4.6 — required when this Evidence corrects an earlier record (append-only correction pattern)" },
+        { "name": "integrity.created_at", "type": "z.string().datetime()", "optional": false, "notes": "§4.6" },
+        { "name": "integrity.content_hash", "type": "z.string()", "optional": false, "notes": "§4.6" },
+        { "name": "retention_class", "type": "z.enum(['operational_state','prompts','evidence_record','secrets_redacted_payload','audit_hash'])", "optional": false, "notes": "§4.6, LLD §2, ADR-011 — constrained to the 5 named classes, not a free string" }
+      ],
+      "additive_fields": [
+        { "name": "retention_expires_at", "type": "z.string().datetime()", "optional": false, "notes": "LLD §2, ADR-011 — finite dev default (90 days) per class; a retention_class name alone doesn't enforce anything" },
+        { "name": "retention_policy_version", "type": "z.string()", "optional": false, "notes": "LLD §2, ADR-011" },
+        { "name": "legal_hold", "type": "z.boolean().default(false)", "optional": false, "notes": "LLD §2, ADR-011 — explicit, audited override, not the default state of everything" }
+      ],
+      "references": []
+    }
+  ],
+  "tables": [],
+  "endpoints": [],
+  "connectors_actions": [],
+  "feature_flag": null,
+  "idempotency_rule": null,
+  "acceptance_criteria_checklist": [
+    "Zod schema + inferred type per contract in packages/contracts/src/schemas/, field-for-field matching spec §4's YAML",
+    "ProposedAction includes accountable_principal_id and risk_assessment.blast_radius's 5-component JSON shape (LLD §2)",
+    "PolicyDecision includes hard_deny_reason_code (enum) + hard_deny_detail, and requires_proposer_approver_separation (LLD §2/§3)",
+    "ExecutionResult includes executor_build_hash (LLD §0, OI-REQ-10)",
+    "Evidence includes retention_expires_at, retention_policy_version, legal_hold (LLD §2, ADR-011)"
+  ],
+  "context_carried_used": [],
+  "open_items_to_flag": [
+    "OI-REQ-02 note: HistoricalEvidenceContext / ContextPackage are NOT in this story's scope — they're A-02 (supporting contracts), not A-01. Do not add them here even though Evidence is adjacent."
+  ],
+  "downstream_stories_unblocked": ["A-02", "A-03", "A-04", "B-01", "B-02", "C-03"]
+}
