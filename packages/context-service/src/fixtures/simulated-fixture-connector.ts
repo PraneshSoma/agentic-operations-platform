@@ -1,4 +1,5 @@
 import type { ConnectorDescriptor } from "@aop/contracts";
+import type { SecretResolver } from "@aop/secrets";
 import {
   ContextUnavailableError,
   type ConnectorConfig,
@@ -29,11 +30,19 @@ export interface FixtureEntry {
  * connector's own `staleness.max_age_seconds` simulates stale data —
  * staleness detection itself lives in assembleContextPackage(), not here;
  * this connector just honestly reports how old its data really is.
+ *
+ * ADR-009 / story C-05: resolves its own credential via the injected
+ * SecretResolver on every read — never a concrete SDK, never a
+ * hand-rolled env lookup — and never returns the resolved value
+ * anywhere in the result (CONTEXT.md RULE 5). Even though this connector
+ * makes no real outbound call, it still exercises the real resolve-then-
+ * use-directly-never-return discipline every real connector must follow.
  */
 export class SimulatedFixtureConnector implements ContextConnector {
   constructor(
     private readonly connectorDescriptor: ConnectorDescriptor,
     private readonly fixtures: ReadonlyMap<string, FixtureEntry | "unavailable">,
+    private readonly secretResolver: SecretResolver,
   ) {}
 
   descriptor(): ConnectorDescriptor {
@@ -50,6 +59,10 @@ export class SimulatedFixtureConnector implements ContextConnector {
     input: Record<string, unknown>,
     _executionContext: ConnectorExecutionContext,
   ): Promise<ConnectorReadResult> {
+    // Resolved and used only to authenticate this (simulated) read — never
+    // logged, never placed in `data`, never returned to the caller.
+    await this.secretResolver.resolve(this.connectorDescriptor.authorization.secret_ref);
+
     const key = typeof input.key === "string" ? input.key : "default";
     const fixture = this.fixtures.get(key);
 

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ApplicationContext, ConnectorDescriptor, RequiredContextEntry } from "@aop/contracts";
 import { ContextPackageSchema } from "@aop/contracts";
+import { EnvVarSecretResolver } from "@aop/secrets";
 import { SimulatedFixtureConnector } from "../fixtures/simulated-fixture-connector.js";
 import { assembleContextPackage } from "./assemble-context-package.js";
 
 const NOW = new Date("2026-08-18T12:00:00.000Z");
+const secretResolver = new EnvVarSecretResolver({ sim: "sk-fixture-secret" });
 
 function connectorDescriptor(overrides: Partial<ConnectorDescriptor> = {}): ConnectorDescriptor {
   return {
@@ -71,6 +73,7 @@ describe("assembleContextPackage", () => {
     const connector = new SimulatedFixtureConnector(
       connectorDescriptor(),
       new Map([["default", { data: validApplicationContext, retrievedAt: NOW }]]),
+      secretResolver,
     );
     const pkg = await assembleContextPackage({
       tenantId: "tenant_1",
@@ -90,7 +93,7 @@ describe("assembleContextPackage", () => {
   });
 
   it("CRITICAL: missing_context populates when a fixture is configured as unavailable", async () => {
-    const connector = new SimulatedFixtureConnector(connectorDescriptor(), new Map([["default", "unavailable"]]));
+    const connector = new SimulatedFixtureConnector(connectorDescriptor(), new Map([["default", "unavailable"]]), secretResolver);
     const pkg = await assembleContextPackage({
       tenantId: "tenant_1",
       requestId: "req_1",
@@ -113,6 +116,7 @@ describe("assembleContextPackage", () => {
     const connector = new SimulatedFixtureConnector(
       connectorDescriptor({ staleness: { max_age_seconds: 300, on_exceeded: "MARK_STALE" } }), // 5 min tolerance
       new Map([["default", { data: validApplicationContext, retrievedAt: staleRetrievedAt }]]),
+      secretResolver,
     );
     const pkg = await assembleContextPackage({
       tenantId: "tenant_1",
@@ -136,6 +140,7 @@ describe("assembleContextPackage", () => {
     const connector = new SimulatedFixtureConnector(
       connectorDescriptor({ staleness: { max_age_seconds: 300, on_exceeded: "MARK_STALE" } }),
       new Map([["default", { data: validApplicationContext, retrievedAt: freshRetrievedAt }]]),
+      secretResolver,
     );
     const pkg = await assembleContextPackage({
       tenantId: "tenant_1",
@@ -166,6 +171,7 @@ describe("assembleContextPackage", () => {
     const connector = new SimulatedFixtureConnector(
       connectorDescriptor(),
       new Map([["default", { data: { totally: "not an ApplicationContext" }, retrievedAt: NOW }]]),
+      secretResolver,
     );
     const pkg = await assembleContextPackage({
       tenantId: "tenant_1",
@@ -185,6 +191,7 @@ describe("assembleContextPackage", () => {
     const connector = new SimulatedFixtureConnector(
       connectorDescriptor(),
       new Map([["default", { data: { not: "a runtime context" }, retrievedAt: NOW }]]),
+      secretResolver,
     );
     const pkg = await assembleContextPackage({
       tenantId: "tenant_1",
@@ -202,6 +209,7 @@ describe("assembleContextPackage", () => {
     const connector = new SimulatedFixtureConnector(
       connectorDescriptor(),
       new Map([["default", { data: { not: "a historical evidence context" }, retrievedAt: NOW }]]),
+      secretResolver,
     );
     const pkg = await assembleContextPackage({
       tenantId: "tenant_1",
@@ -219,6 +227,7 @@ describe("assembleContextPackage", () => {
     const appConnector = new SimulatedFixtureConnector(
       connectorDescriptor({ connector_id: "sim-app" }),
       new Map([["default", { data: validApplicationContext, retrievedAt: NOW }]]),
+      secretResolver,
     );
     const runtimeConnector = new SimulatedFixtureConnector(
       connectorDescriptor({ connector_id: "sim-runtime" }),
@@ -237,6 +246,7 @@ describe("assembleContextPackage", () => {
           },
         ],
       ]),
+      secretResolver,
     );
     const evidenceConnector = new SimulatedFixtureConnector(
       connectorDescriptor({ connector_id: "sim-evidence" }),
@@ -249,6 +259,7 @@ describe("assembleContextPackage", () => {
           },
         ],
       ]),
+      secretResolver,
     );
 
     const pkg = await assembleContextPackage({
