@@ -6,6 +6,25 @@ const PolicyReasonSchema = z.object({
 });
 
 /**
+ * Exported (story C-03): packages/policy-engine's hard-deny checks
+ * (src/hard-deny.ts) need this as a standalone type — each check's `code`
+ * field is one of these 8 values. Previously inlined only inside
+ * PolicyDecisionSchema; same values, just now also independently
+ * reusable. Additive — no value changed.
+ */
+export const HardDenyReasonCodeSchema = z.enum([
+  "UNREGISTERED_ACTION",
+  "TENANT_MISMATCH",
+  "EXPIRED_AUTHORIZATION",
+  "PROHIBITED_ENVIRONMENT",
+  "MISSING_REQUIRED_EVIDENCE",
+  "KILL_SWITCH_ACTIVE",
+  "IMMUTABLE_POLICY_VIOLATION",
+  "POLICY_EVALUATION_FAILED",
+]);
+export type HardDenyReasonCode = z.infer<typeof HardDenyReasonCodeSchema>;
+
+/**
  * PolicyDecision — the Policy Engine's deterministic evaluation of one
  * ProposedAction (spec §4.4, §16). outcome is three-valued and DENY is
  * first-class: a hard-deny (LLD-v1 §3, ADR-008) is never presented as
@@ -31,18 +50,7 @@ export const PolicyDecisionSchema = z.object({
 
   // Additive — LLD-v1 §2/§3, ADR-008. Set only when `outcome: DENY`
   // originates from the fixed HARD_DENY_CHECKS list, never a tenant rule.
-  hard_deny_reason_code: z
-    .enum([
-      "UNREGISTERED_ACTION",
-      "TENANT_MISMATCH",
-      "EXPIRED_AUTHORIZATION",
-      "PROHIBITED_ENVIRONMENT",
-      "MISSING_REQUIRED_EVIDENCE",
-      "KILL_SWITCH_ACTIVE",
-      "IMMUTABLE_POLICY_VIOLATION",
-      "POLICY_EVALUATION_FAILED",
-    ])
-    .optional(),
+  hard_deny_reason_code: HardDenyReasonCodeSchema.optional(),
   // Sanitized, human-readable detail alongside the code — never raw
   // exception text (LLD-v1 §3's non-blocking correction).
   hard_deny_detail: z.string().optional(),

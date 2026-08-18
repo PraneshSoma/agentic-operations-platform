@@ -9,6 +9,7 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@aop/contracts": "workspace:*"
+    "@aop/contracts": "workspace:*",
+    "zod": "^3.23.8"
   }
 }
