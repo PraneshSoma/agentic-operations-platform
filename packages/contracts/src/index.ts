@@ -19,6 +19,7 @@ export * from "./schemas/execution-authorization.js";
 export * from "./schemas/preflight-result.js";
 export * from "./schemas/opc-match-result.js";
 export * from "./schemas/verification-result.js";
+export * from "./schemas/platform-event.js";
 
 /**
  * Retained from the pre-Build scaffold — proved the workspace toolchain

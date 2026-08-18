@@ -49,6 +49,12 @@ importers:
         specifier: ^4.19.1
         version: 4.23.12
 
+  apps/worker:
+    dependencies:
+      '@aop/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
   packages/contracts:
     dependencies:
       zod:
