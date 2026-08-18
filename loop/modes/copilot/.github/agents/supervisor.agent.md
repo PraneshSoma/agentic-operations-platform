@@ -196,75 +196,50 @@ on each `emit_on` trigger. Minimum fields: `run_id`, `story_id`, `agent`,
 `revise_count`, `fallback_used`, `quality_gates`, `timestamp`. The three
 dashboards read this file.
 
-## Story Queue — illustrative, pending Story Gen (Phase 2)
+## Story Queue
 
-> This queue is seeded from the implementation spec's own §38 "Suggested
-> Implementation Sequence" so the Build phase has a concrete starting point.
-> It is **not** a substitute for running Phase 1/2 for real — once
-> Discovery → Requirements → ADR → LLD → Story Gen have run against
-> `requirements/AOP-001-agentic-operations-platform.md`, replace this block
-> with Story Gen's actual output (which may reorder, split, or add stories the
-> spec's iteration list doesn't spell out at this granularity).
->
-> **Sequencing guidance from `context/product-intent/vision-and-differentiation.md`:**
-> the product owner's stated preference is depth over breadth for the first
-> real pass — one KTLO story proven end-to-end through Confidence Engine +
-> Policy Gate + Verification (even if narrow), rather than many OPCs each
-> landing partially. Story Gen should weigh this against the phase order
-> below rather than defaulting to "finish Phase A fully, then Phase B," if
-> the two are in tension.
+**Story Gen has run for real.** The authoritative queue is
+`pipeline/story_queue.json` — 43 stories across phases A-H plus a deferred
+list, generated from `pipeline/lld/LLD-v1.md` (Revision 2, ACCEPTED),
+`pipeline/requirements.md` (Revision 2), and all 12 `ACCEPTED` ADRs. The
+placeholder that used to live in this section (seeded from spec §38, before
+Phase 1/2 had run) is superseded — do not resurrect it if this file is
+regenerated; read the JSON.
+
+Shape, for reference (see the file for full acceptance criteria per story):
 
 ```
-PHASE A — Contracts (spec §4, Iteration 1)
-  A-01  Core domain contracts: IncomingRequest, OperationalProcedureContract,
-        ProposedAction, PolicyDecision, ExecutionResult, Evidence
-  A-02  Supporting contracts: ExecutionState, ContextPackage, ActionDefinition,
-        ConnectorDescriptor, ExecutionAuthorization, PreflightResult,
-        OPCMatchResult                                    [needs A-01]
-  A-03  Validate OPC A/B/C (§35) against the OPC schema    [needs A-02]
+PHASE A — Contracts                         (4 stories, MVP)
+PHASE B — Happy-path runtime                (6 stories, MVP)
+PHASE C — Identity & Governance             (5 stories, MVP — includes
+                                              IdentityResolver at MVP per
+                                              ADR-012's correction)
+PHASE D — Execution (simulated)             (7 stories, MVP)
+PHASE E — Evidence, confidence, dashboard   (7 stories, MVP)
+PHASE F — Engineering-Change Action         (4 stories, Post-MVP;
+                                              F-EC-01 BLOCKED on OI-LLD-01,
+                                              F-EC-04 DEFERRED — time-gated
+                                              on real evidence volume)
+PHASE G — Real pilot & integrations         (7 stories, ALL BLOCKED on
+                                              OI-CTX tenant facts — real
+                                              connectors, real identity
+                                              provider, real secrets,
+                                              named approval roles, real
+                                              deployment target, real
+                                              retention decision)
+PHASE H — Release Acceptance (RAT-01)       (3 stories — the 3-shape
+                                              genericity proof, needs both
+                                              F and G)
 
-PHASE B — Happy-path runtime, no mutation (spec §33 steps 1-7, Iteration 2)
-  B-01  Webhook trigger adapter + IncomingRequest normalization   [needs A-01]
-  B-02  OPC matcher + deterministic margin guardrail (§6A)        [needs A-02]
-  B-03  Durable orchestrator state machine skeleton (§7)          [needs B-02]
-  B-04  Mock context connectors (application/runtime/evidence)    [needs A-02]
-  B-05  Investigator agent integration (§11)                      [needs B-03, B-04]
-  B-06  Planner agent integration + frozen plan rule (§12)        [needs B-05]
-
-PHASE C — Governance (spec §33 steps 8-10, Iteration 3)
-  C-01  Action Registry + ActionDefinition config (§13)           [needs A-02]
-  C-02  Policy Engine — deterministic rules, risk classification (§15-16) [needs A-01]
-  C-03  Slack approval adapter + Approval Service (§18)           [needs C-02]
-  C-04  Execution identity & delegation, OBO (§14A)                [needs C-03]
-  C-05  Signed ExecutionAuthorization issuance                     [needs C-04]
-
-PHASE D — Execution (spec §33 steps 11-13, Iteration 4)
-  D-01  First real context connector (tenant #1 pilot system)     [needs B-04]
-  D-02  First real action connector + preflight/drift check (§14B) [needs C-01, C-05]
-  D-03  Verification Engine (§19)                                  [needs D-02]
-  D-04  Rollback Manager (§20)                                     [needs D-03]
-  D-05  Emergency halt / kill switch (§7A)                         [needs B-03]
-  D-06  Token & cost governance / budget enforcement (§7B)         [needs B-03]
-  D-07  Code/config-change ActionConnector — invokes the Build loop
-        for a single scoped story as a governed action; rollback is
-        a git revert (context/product-intent/vision-and-differentiation.md
-        "Scope decision")                                          [needs C-01, C-05]
-
-PHASE E — Evidence + dashboard (spec §33 steps 14-16, Iteration 5)
-  E-01  Evidence Ledger persistence — append-only, relationships (§21, §4.6) [needs A-01, D-03]
-  E-02  Event model + PlatformEvent emission (§22)                 [needs B-03]
-  E-03  Control Tower read API (§27)                                [needs E-01, E-02]
-  E-04  Governance + Operations dashboard views (§28)               [needs E-03]
-  E-05  OPC Performance view + Autonomy Ladder, read-only (§17.1, §28) [needs E-03]
-
-PHASE F — Second tenant/OPC, config-only (Iteration 6 — the genericity test)
-  F-01  Second, deliberately different OPC/tenant run config-only, zero
-        runtime changes                                             [needs E-04]
-
-DEFERRED  Z-01  Engineering Context (§36)                    [OI-ENG-CONTEXT: needs Phase-2+ business case]
-DEFERRED  Z-02  Business Context (§37)                        [OI-BIZ-CONTEXT: needs Phase-3+ business case]
-DEFERRED  Z-03  Autonomy Graduation Engine, L4/L5 (§17, §17.1) [OI-AUTONOMY: needs real outcome-evidence volume]
+DEFERRED  Z-01..Z-04  Engineering Context, Business Context, Autonomy
+                      Graduation Engine (L4/L5), multi-region — all
+                      explicitly out of scope per the spec's own roadmap.
 ```
+
+**Phases A-E are the tenant-neutral MVP queue and are not blocked by any
+OI-CTX tenant fact** — per LLD-v1.md §8's corrected scope, webhook + one
+OPC + simulated action is buildable without knowing who Tenant #1 is. Only
+Phase G (and F-EC-01) carry real blockers.
 
 ## HIL Gate Format
 

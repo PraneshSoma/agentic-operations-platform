@@ -1,0 +1,324 @@
+{
+  "initiative": "AOP-001",
+  "generated_from": {
+    "lld": "pipeline/lld/LLD-v1.md (Revision 2, ACCEPTED)",
+    "requirements": "pipeline/requirements.md (Revision 2, APPROVED)",
+    "adrs": "pipeline/adr/ADR-001.md .. ADR-012.md (all ACCEPTED)"
+  },
+  "generated_at": "2026-08-17",
+  "sequencing_note": "Per context/product-intent/vision-and-differentiation.md's depth-over-breadth guidance and Requirements Rev2's MVP/Post-MVP classification: Phases A-E are the tenant-neutral MVP queue (webhook + one OPC + simulated action, through Confidence Engine + Policy Gate + Verification) and are NOT blocked by any OI-CTX tenant fact. Phase F is Post-MVP (engineering-change action). Phase G is explicitly BLOCKED -- real pilot/connector work that only real tenant facts can unblock. Phase H is the RAT-01 genericity gate, needing both F and G.",
+  "effort_note": "S/M/L sizing only -- no team_velocity input was provided, so no fabricated point estimates.",
+  "stories": [
+    { "id": "A-01", "phase": "A - Contracts", "title": "Core domain contracts: IncomingRequest, OperationalProcedureContract, ProposedAction, PolicyDecision, ExecutionResult, Evidence",
+      "acceptance_criteria": [
+        "Zod schema + inferred type per contract in packages/contracts/src/schemas/, field-for-field matching spec §4's YAML",
+        "ProposedAction includes accountable_principal_id and risk_assessment.blast_radius's 5-component JSON shape (LLD §2)",
+        "PolicyDecision includes hard_deny_reason_code (enum) + hard_deny_detail, and requires_proposer_approver_separation (LLD §2/§3)",
+        "ExecutionResult includes executor_build_hash (LLD §0, OI-REQ-10)",
+        "Evidence includes retention_expires_at, retention_policy_version, legal_hold (LLD §2, ADR-011)"
+      ],
+      "effort": "M", "depends_on": [], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "A-02", "phase": "A - Contracts", "title": "Supporting contracts: ExecutionState, ContextPackage, ActionDefinition, ConnectorDescriptor, ExecutionAuthorization, PreflightResult, OPCMatchResult",
+      "acceptance_criteria": [
+        "ExecutionState.state enum includes EXECUTION_UNCERTAIN (LLD §4, ADR-004/gate 5)",
+        "ActionDefinition includes compensation_class (REVERSIBLE|COMPENSATABLE|IRREVERSIBLE) + risk_scoring_ref, consistency-validated against reversible per ADR-001",
+        "ConnectorDescriptor includes definition_version, supports_correlation, is_idempotent, reliability_level (LLD §2, ADR-004/007, OI-REQ-10)",
+        "VerificationResult.checks[].name constrained to the formal enum from LLD §2 (incl. ROLE_SEPARATED_REVIEW)"
+      ],
+      "effort": "M", "depends_on": ["A-01"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "A-03", "phase": "A - Contracts", "title": "New LLD tables' contracts: execution_step_marker, outbox_event, identity_principal",
+      "acceptance_criteria": [
+        "execution_step_marker schema matches LLD §2 exactly, including the tenant_id-leading UNIQUE(tenant_id, execution_id, step_id, operation_id) constraint",
+        "outbox_event schema matches LLD §2's full field list (event_id distinct from row id, aggregate_type/id/version, event_schema_version, available_at)",
+        "identity_principal includes is_development_principal, roles[]",
+        "Prisma schema.prisma updated additively; migration generated and reviewed"
+      ],
+      "effort": "M", "depends_on": ["A-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "A-04", "phase": "A - Contracts", "title": "Validate OPC A/B/C (spec §35) against the OPC schema",
+      "acceptance_criteria": [
+        "All three OPC definitions parse cleanly through OperationalProcedureContract's Zod schema",
+        "No OPC requires a runtime code branch to represent -- schema/runtime abstraction proven complete at the contract level"
+      ],
+      "effort": "S", "depends_on": ["A-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "B-01", "phase": "B - Happy-path runtime", "title": "Webhook trigger adapter + IncomingRequest normalization",
+      "acceptance_criteria": [
+        "A webhook POST produces a schema-valid IncomingRequest (F-01 MVP)",
+        "Raw trigger payload preserved separately via raw_payload_ref",
+        "No trigger-specific field readable outside the trigger adapter"
+      ],
+      "effort": "M", "depends_on": ["A-01"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "B-02", "phase": "B - Happy-path runtime", "title": "OPC matcher + deterministic margin guardrail",
+      "acceptance_criteria": [
+        "Exact-filter matching plus margin-bounded semantic fallback works against one configured OPC (F-02 MVP)",
+        "An intentionally ambiguous ticket (margin below minimum_required_margin) yields AMBIGUOUS_ESCALATE, never an auto-pick",
+        "OPCMatchResult (all candidates) written to the Evidence Ledger unconditionally"
+      ],
+      "effort": "M", "depends_on": ["A-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "B-03", "phase": "B - Happy-path runtime", "title": "Durable orchestrator state machine skeleton, including EXECUTION_UNCERTAIN",
+      "acceptance_criteria": [
+        "Every transition persists state + emits PlatformEvent + writes Evidence, all three, same order, every time (RULE 7)",
+        "State machine implements the full stateDiagram in LLD §4, including all three proof-gated exits from EXECUTION_UNCERTAIN",
+        "Re-delivering the same trigger is a no-op (idempotency key per spec §31)"
+      ],
+      "effort": "L", "depends_on": ["B-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "B-04", "phase": "B - Happy-path runtime", "title": "Simulated context connectors (application/runtime/evidence)",
+      "acceptance_criteria": [
+        "Implements ContextConnector interface against fixture/fake data, not a real system",
+        "ContextPackage.missing_context and stale_context populate correctly when a fixture is configured as unavailable/stale",
+        "Never exposes a write operation through the connector interface (NFR-02)"
+      ],
+      "effort": "M", "depends_on": ["A-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "B-05", "phase": "B - Happy-path runtime", "title": "Investigator agent integration",
+      "acceptance_criteria": [
+        "Every factual claim in the diagnosis traces to an evidence_id -- no invented connector results (F-05)",
+        "Hypotheses marked supported/rejected/unresolved explicitly"
+      ],
+      "effort": "M", "depends_on": ["B-03", "B-04"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "B-06", "phase": "B - Happy-path runtime", "title": "Planner agent integration + Frozen Plan Rule",
+      "acceptance_criteria": [
+        "After approval, executor cannot add/substitute an action outside the approved plan (F-06)",
+        "A changed parameter on an approved step forces re-approval, never silently proceeds"
+      ],
+      "effort": "M", "depends_on": ["B-05"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "C-01", "phase": "C - Identity & Governance", "title": "IdentityResolver interface + local dev-principal implementation",
+      "acceptance_criteria": [
+        "Resolves an actor reference to identity, tenant_id, roles, risk-class approval permission (LLD §5) -- built at MVP per ADR-012's correction, not deferred",
+        "Dev principals are a static config list, clearly flagged is_development_principal: true",
+        "Resolves both IncomingRequest.requester and ApprovalDecision.actor through the same table"
+      ],
+      "effort": "M", "depends_on": ["A-03"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "C-02", "phase": "C - Identity & Governance", "title": "Versioned Action Registry (registry mechanics only)",
+      "acceptance_criteria": [
+        "ActionDefinition versioned, status active|disabled, lookup always by tenant_id + action_ref + version (F-07)",
+        "Every ActionDefinition validates/executes through the identical ActionConnector interface regardless of kind -- no runtime branch on action kind (RULE 8)"
+      ],
+      "effort": "M", "depends_on": ["A-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "C-03", "phase": "C - Identity & Governance", "title": "Policy Engine: two-phase evaluation, fixed hard-deny checks, fail-closed",
+      "acceptance_criteria": [
+        "HARD_DENY_CHECKS is a fixed, code-level list in packages/policy-engine/src/hard-deny.ts -- NOT loaded from tenant config (LLD §3, gate 4)",
+        "test_hardDeny_cannotBeOverriddenByAnyPolicyRule() passes: a tenant policy trying to ALLOW an unregistered action still returns DENY",
+        "Any evaluation exception/timeout/malformed-rule/missing-input resolves to DENY(POLICY_EVALUATION_FAILED), never REQUIRE_APPROVAL",
+        "PolicyDecision.requires_proposer_approver_separation set from any matched rule that sets it (consumed later by C-04, not enforced here)",
+        "Same ProposedAction + policy version evaluated twice produces a byte-identical PolicyDecision (NFR-05)"
+      ],
+      "effort": "L", "depends_on": ["A-01", "C-01"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "C-04", "phase": "C - Identity & Governance", "title": "Approval Acceptance Gate (corrected separation-of-duties flow)",
+      "acceptance_criteria": [
+        "Resolves the candidate approver's identity via IdentityResolver AFTER PolicyDecision exists, per LLD §5's corrected sequence -- separation-of-duties is NOT checked inside Policy Engine Phase 2",
+        "When requires_proposer_approver_separation is true, approver_principal_id == accountable_principal_id is rejected, routed to a different approver",
+        "No ExecutionAuthorization issued until every check (identity resolved, role permits risk class, separation satisfied) passes",
+        "POST /tenants/{tenantId}/approvals/{approvalId}/decision implemented per LLD §6"
+      ],
+      "effort": "L", "depends_on": ["C-01", "C-03"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "C-05", "phase": "C - Identity & Governance", "title": "SecretResolver interface + local env-var implementation",
+      "acceptance_criteria": [
+        "Connectors resolve secrets only via SecretResolver, never a concrete SDK directly (ADR-009)",
+        "test_executeRead_neverExposesSecretValue() passes for every connector built against this interface"
+      ],
+      "effort": "S", "depends_on": ["A-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "D-01", "phase": "D - Execution (simulated)", "title": "Simulated ActionConnector",
+      "acceptance_criteria": [
+        "Implements the full ActionConnector interface (validateAction/preflight/execute/rollback) against a fake/sandboxed target (F-18 MVP)",
+        "Proves the complete governed pipeline end-to-end without a real production mutation",
+        "execute() rejects when called without a resolved ExecutionAuthorization"
+      ],
+      "effort": "M", "depends_on": ["C-02", "C-04"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "D-02", "phase": "D - Execution (simulated)", "title": "Preflight/drift check (MATCH/DRIFTED/UNKNOWN)",
+      "acceptance_criteria": [
+        "Runs immediately before every execute() call (F-10)",
+        "DRIFTED blocks execution unconditionally; UNKNOWN (preflight failure) treated as missing required context, never an implicit pass",
+        "A deliberately staged drift against the simulated connector's preconditions is caught and blocks execution"
+      ],
+      "effort": "M", "depends_on": ["D-01"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "D-03", "phase": "D - Execution (simulated)", "title": "Verification Engine",
+      "acceptance_criteria": [
+        "FAILED/INCONCLUSIVE never marks the ticket resolved (F-13)",
+        "recommended_next_step always populated (CLOSE/ROLLBACK/ESCALATE)",
+        "ROLLBACK is only ever recommended for REVERSIBLE/COMPENSATABLE actions, never IRREVERSIBLE ones"
+      ],
+      "effort": "M", "depends_on": ["D-01"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "D-04", "phase": "D - Execution (simulated)", "title": "Rollback decision gate: REVERSIBLE/COMPENSATABLE/IRREVERSIBLE",
+      "acceptance_criteria": [
+        "Three-class distinction present and validated at registration (ADR-001, F-14 MVP gate)",
+        "IRREVERSIBLE actions never attempt rollback -- verification failure escalates directly",
+        "Simulated MVP action is explicitly classed and its rollback behavior matches its class"
+      ],
+      "effort": "M", "depends_on": ["D-01", "C-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "D-05", "phase": "D - Execution (simulated)", "title": "Emergency halt / kill switch",
+      "acceptance_criteria": [
+        "Halting an in-flight execution transitions to ESCALATED_HUMAN_OVERRIDE with an auditable Evidence record and execution.halted event (F-11, spec §7A)",
+        "Halt never attempts automatic rollback on an already-completed action",
+        "required_halt_roles enforced via IdentityResolver"
+      ],
+      "effort": "M", "depends_on": ["B-03", "C-01"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "D-06", "phase": "D - Execution (simulated)", "title": "Token & cost governance / budget enforcement",
+      "acceptance_criteria": [
+        "An execution exceeding its OPC-configured budget escalates with BUDGET_EXCEEDED, never silently truncates (F-12)",
+        "Budget consumption written to the Evidence Ledger per execution"
+      ],
+      "effort": "M", "depends_on": ["B-03"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "D-07", "phase": "D - Execution (simulated)", "title": "Crash-recovery marker + status-check, end-to-end",
+      "acceptance_criteria": [
+        "execution_step_marker written in the same transaction as the pre-execute state write, before the connector call (LLD §2)",
+        "operation_id is stable and reused across retries -- never regenerated per attempt",
+        "POST /internal/connectors/{connector_ref}/status-check implemented; a simulated crash mid-flight is recovered through EXECUTION_UNCERTAIN per LLD §7.2's sequence exactly",
+        "Automatic retry is prohibited when status is inconclusive and the action is not provably idempotent (ADR-004 fail-closed rule)"
+      ],
+      "effort": "L", "depends_on": ["D-01", "B-03", "A-03"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "E-01", "phase": "E - Evidence, confidence, dashboard", "title": "Evidence Ledger persistence",
+      "acceptance_criteria": [
+        "Append-only: a correction creates a new record with relationships.supersedes set, never an in-place update (F-15)",
+        "Cross-tenant leak test (two seeded tenants) returns zero rows for the wrong tenant on every table",
+        "retention_expires_at / retention_policy_version / legal_hold populated per ADR-011's finite dev default (90 days), explicitly labeled non-production"
+      ],
+      "effort": "L", "depends_on": ["A-01", "D-03"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "E-02", "phase": "E - Evidence, confidence, dashboard", "title": "Event model + outbox-pattern PlatformEvent emission",
+      "acceptance_criteria": [
+        "outbox_event row inserted in the SAME transaction as the state+evidence write it accompanies (ADR-005, LLD §2)",
+        "A separate relay process publishes and marks published_at; consumers dedupe by the stable event_id, never the row id",
+        "Relay-lag alert ships with a configurable default threshold of 5 minutes, tenant-overridable (OI-LLD-02, folded in here per LLD §8's correction -- not a separate blocker)"
+      ],
+      "effort": "M", "depends_on": ["B-03"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "E-03", "phase": "E - Evidence, confidence, dashboard", "title": "Confidence dimensions, itemized (no numeric rollup)",
+      "acceptance_criteria": [
+        "All 5 already-defined dimensions (evidence coverage, hypothesis support, contradictory evidence, verification confidence, freshness) surfaced individually, never collapsed into one figure (F-17 MVP)",
+        "No numeric confidence percentage is displayed anywhere -- itemized dimensions are the entire confidence surface at this stage"
+      ],
+      "effort": "M", "depends_on": ["D-03", "C-03"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "E-04", "phase": "E - Evidence, confidence, dashboard", "title": "Role-separated review check + source-reliability + policy-certainty dimensions",
+      "acceptance_criteria": [
+        "Role-separated reviewer receives only frozen plan + diff + tests + evidence -- explicitly NOT the generator's reasoning transcript (ADR-006)",
+        "Never described as 'independent review' in UI/docs -- 'role-separated' terminology enforced",
+        "Source reliability keyed to (tenant, connector_definition, connector_version), ordinal LOW|MEDIUM|HIGH|AUTHORITATIVE, not decimals (ADR-007)",
+        "Policy certainty is categorical from PolicyDecision.outcome (ALLOW|REQUIRE_APPROVAL|DENY) -- DENY never displayed as merely 'low confidence' (ADR-008)"
+      ],
+      "effort": "M", "depends_on": ["E-03"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "E-05", "phase": "E - Evidence, confidence, dashboard", "title": "Control Tower minimal read API",
+      "acceptance_criteria": [
+        "An execution's complete history reconstructable from Evidence Ledger records alone (F-16, spec §34 acceptance bar)",
+        "GET /tenants/{tenantId}/executions/{executionId}/context-package/composite implemented (LLD §6, OI-REQ-02) -- read-only join, zero ContextPackage schema change"
+      ],
+      "effort": "M", "depends_on": ["E-01", "E-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "E-06", "phase": "E - Evidence, confidence, dashboard", "title": "Version-binding read view",
+      "acceptance_criteria": [
+        "Given an execution_id, a single query/view returns every element in LLD §0's version-binding table (F-20)",
+        "No new write path -- a read guarantee only, per OI-REQ-10's resolution"
+      ],
+      "effort": "S", "depends_on": ["E-01"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "E-07", "phase": "E - Evidence, confidence, dashboard", "title": "Tenant activation gate",
+      "acceptance_criteria": [
+        "POST /tenants/{tenantId}/onboarding/activate rejects unless retention_policy_confirmed_at is set AND no production-flagged execution path resolves through an is_development_principal identity (LLD §6, unifying ADR-011 + ADR-012)",
+        "Activation is a real technical gate, not documentation-only"
+      ],
+      "effort": "M", "depends_on": ["C-01", "E-01"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "F-EC-01", "phase": "F - Engineering-Change Action (Post-MVP)", "title": "Declarative blast-radius scoring engine (5-component model)",
+      "acceptance_criteria": [
+        "Scoring rules are declarative only -- no executable tenant code runs in the control plane (ADR-003)",
+        "Registered, versioned, deterministic, schema-validated, bounded input/time, hash-bound to the PolicyDecision, default-deny on evaluation failure",
+        "Produces all 5 named components (estimated_entities, environmental_criticality, compensation_class, data_sensitivity, customer_exposure) independently, never collapsed to one number"
+      ],
+      "effort": "L", "depends_on": ["C-03"], "blocked_by": ["OI-LLD-01"], "status": "BLOCKED" },
+
+    { "id": "F-EC-02", "phase": "F - Engineering-Change Action (Post-MVP)", "title": "EngineeringChangeExecutor",
+      "acceptance_criteria": [
+        "Binds repo/branch/base-commit/file-scope allowlist from the FROZEN plan before any generation begins (ADR-002)",
+        "Invokes codegen+testgen via the shared runRealTestGate() module; enforces budget/timeout/retry limits",
+        "Produces a draft PR only -- never merges, never deploys",
+        "A material deviation from the frozen plan's bound scope invalidates authorization outright and forces replanning",
+        "Single approval gate verified: no second human-facing gate exists inside this executor"
+      ],
+      "effort": "L", "depends_on": ["D-04", "C-04", "F-EC-01"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "F-EC-03", "phase": "F - Engineering-Change Action (Post-MVP)", "title": "Compensating-action rollback for code-change actions",
+      "acceptance_criteria": [
+        "Rollback for a code-change action is a revert PR that re-enters the FULL governed pipeline (new ProposedAction, policy, approval) -- never an instant bypass (ADR-001, F-14 Post-MVP)"
+      ],
+      "effort": "M", "depends_on": ["F-EC-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "F-EC-04", "phase": "F - Engineering-Change Action (Post-MVP)", "title": "Calibrated numeric confidence rollup",
+      "acceptance_criteria": [
+        "A single numeric confidence figure is displayed ONLY once empirically calibrated against a defined minimum number of historical verified outcomes (spec §26, F-17 Post-MVP gate)",
+        "Before that threshold, itemized dimensions (E-03/E-04) remain the entire confidence surface -- no interim/placeholder percentage is ever shown"
+      ],
+      "effort": "M", "depends_on": ["E-04"], "blocked_by": [], "status": "DEFERRED",
+      "defer_reason": "Time-gated on real evidence volume, not a dependency graph gap -- revisit once E-03/E-04 have run against enough real tickets." },
+
+    { "id": "G-01", "phase": "G - Real pilot & integrations (BLOCKED)", "title": "First real context connector (Tenant #1 pilot system)",
+      "acceptance_criteria": ["Real logs/metrics connector against Tenant #1's actual platform, per spec Iteration 4"],
+      "effort": "M", "depends_on": ["D-01"], "blocked_by": ["OI-CTX-06", "OI-CTX-07"], "status": "BLOCKED" },
+
+    { "id": "G-02", "phase": "G - Real pilot & integrations (BLOCKED)", "title": "First real action connector, real preflight/verification",
+      "acceptance_criteria": ["Real operational connector against Tenant #1's system, with real drift detection and real verification"],
+      "effort": "L", "depends_on": ["D-01", "D-02", "D-03", "G-01"], "blocked_by": ["OI-CTX-01", "OI-CTX-07"], "status": "BLOCKED" },
+
+    { "id": "G-03", "phase": "G - Real pilot & integrations (BLOCKED)", "title": "Real OBO identity-provider integration",
+      "acceptance_criteria": ["Concrete OIDC/SSO implementation behind IdentityResolver; at least one R2-class action runs under real ON_BEHALF_OF identity (F-09 real, ADR-012)"],
+      "effort": "L", "depends_on": ["C-01"], "blocked_by": ["OI-CTX-12"], "status": "BLOCKED" },
+
+    { "id": "G-04", "phase": "G - Real pilot & integrations (BLOCKED)", "title": "Real secret-manager implementation",
+      "acceptance_criteria": ["Concrete SecretResolver implementation for Tenant #1's actual secret manager/cloud platform (ADR-009)"],
+      "effort": "M", "depends_on": ["C-05"], "blocked_by": ["OI-CTX-08"], "status": "BLOCKED" },
+
+    { "id": "G-05", "phase": "G - Real pilot & integrations (BLOCKED)", "title": "Named approval-route / halt-role configuration",
+      "acceptance_criteria": ["Tenant policy config references real named individuals/teams for platform owner, security owner, senior on-call"],
+      "effort": "S", "depends_on": ["C-04", "D-05"], "blocked_by": ["OI-CTX-03"], "status": "BLOCKED" },
+
+    { "id": "G-06", "phase": "G - Real pilot & integrations (BLOCKED)", "title": "Real deployment target implementation",
+      "acceptance_criteria": ["Orchestration-specific manifests/pipeline for the confirmed target environment (ADR-010)"],
+      "effort": "L", "depends_on": [], "blocked_by": ["OI-CTX-09"], "status": "BLOCKED" },
+
+    { "id": "G-07", "phase": "G - Real pilot & integrations (BLOCKED)", "title": "Production retention decision + compliance-specific enforcement",
+      "acceptance_criteria": ["retention_policy_confirmed_at set from a real, documented tenant decision per class; enforcement (deletion/archival) implemented if the confirmed regime requires it (ADR-011)"],
+      "effort": "M", "depends_on": ["E-01", "E-07"], "blocked_by": ["OI-CTX-10"], "status": "BLOCKED" },
+
+    { "id": "H-01", "phase": "H - Release Acceptance (RAT-01)", "title": "OPC shape 2: approval-gated operational mutation, config-only",
+      "acceptance_criteria": ["Runs on identical runtime code to the MVP's OPC, differing only in configuration -- zero runtime changes"],
+      "effort": "S", "depends_on": ["G-02"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "H-02", "phase": "H - Release Acceptance (RAT-01)", "title": "OPC shape 1: diagnostic-only, no mutating action",
+      "acceptance_criteria": ["Investigation/diagnosis only, config-only, zero runtime changes"],
+      "effort": "S", "depends_on": ["B-06"], "blocked_by": [], "status": "PENDING" },
+
+    { "id": "H-03", "phase": "H - Release Acceptance (RAT-01)", "title": "RAT-01: three structurally different OPCs, zero runtime branching",
+      "acceptance_criteria": [
+        "All three shapes (diagnostic-only, approval-gated mutation, engineering-change/draft-PR) run on the same runtime with no scenario-specific code",
+        "This is the sharper genericity proof superseding spec §35's OPC A/B/C business-domain triad, per Requirements Revision 2's RAT-01"
+      ],
+      "effort": "M", "depends_on": ["F-EC-02", "H-01", "H-02"], "blocked_by": [], "status": "PENDING" }
+  ],
+  "deferred_out_of_scope": [
+    { "id": "Z-01", "title": "Full Engineering Context (spec §36)", "reason": "Explicitly deferred, Phase 2+ of the spec's own roadmap." },
+    { "id": "Z-02", "title": "Business Context (spec §37)", "reason": "Explicitly deferred, Phase 3+ of the spec's own roadmap." },
+    { "id": "Z-03", "title": "Autonomy Graduation Engine, L4/L5 (spec §17, §17.1)", "reason": "AutonomyGraduationPolicy.enabled stays false everywhere in v0.2." },
+    { "id": "Z-04", "title": "Multi-region / data residency", "reason": "OI-CTX-11, explicitly Post-MVP, relevant only once a second tenant/region is in play." }
+  ]
+}
