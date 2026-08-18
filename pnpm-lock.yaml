@@ -133,6 +133,15 @@ importers:
 
   packages/secrets: {}
 
+  packages/verification-engine:
+    dependencies:
+      '@aop/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+
 packages:
 
   '@ampproject/remapping@2.3.0':
