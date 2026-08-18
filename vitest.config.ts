@@ -33,6 +33,13 @@ export default defineConfig({
         "apps/*/src/index.ts",
         "packages/contracts/src/llm-provider.ts",
         "packages/identity/src/identity-resolver.ts",
+        // Prisma-backed repository: append-only-ness and cross-tenant
+        // isolation are DB-level properties a dependency-free unit test
+        // can't exercise. Verified by *.integration.test.ts against a real
+        // Postgres (story E-01); the pure logic it delegates to
+        // (buildSupersedingRecord, computeRetention) stays fully covered
+        // in the default gate.
+        "packages/evidence-ledger/src/repositories/prisma-evidence-repository.ts",
       ],
     },
   },

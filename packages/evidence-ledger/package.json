@@ -12,6 +12,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "@aop/contracts": "workspace:*",
     "@prisma/client": "^5.19.1"
   },
   "devDependencies": {

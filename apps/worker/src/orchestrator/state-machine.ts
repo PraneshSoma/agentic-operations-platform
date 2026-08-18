@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { EvidenceSchema, ExecutionStateSchema, PlatformEventSchema, type Evidence, type ExecutionState } from "@aop/contracts";
+import { computeRetention } from "@aop/evidence-ledger";
 import type { ExecutionStateStore } from "./execution-state-store.js";
 import type { PlatformEventEmitter } from "./platform-event-emitter.js";
 import type { EvidenceRecorder } from "./evidence-recorder.js";
@@ -253,13 +254,9 @@ export class ExecutionStateMachine {
         relationships: {},
         integrity: { created_at: now.toISOString(), content_hash: `sha256:placeholder-${execution.execution_id}-${execution.state}` },
         retention_class: "operational_state",
-        // Placeholder only — real per-class retention computation (ADR-011)
-        // is E-01's job. A same-instant expiry would be actively
-        // misleading, so this uses a naive fixed 30-day dev-default
-        // instead of pretending to compute the real policy here.
-        retention_expires_at: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-        retention_policy_version: "v0-dev-default",
-        legal_hold: false,
+        // Real per-class retention computation now lands here (E-01,
+        // ADR-011) — replacing B-03's disclosed naive 30-day placeholder.
+        ...computeRetention("operational_state", now),
       }),
     );
   }

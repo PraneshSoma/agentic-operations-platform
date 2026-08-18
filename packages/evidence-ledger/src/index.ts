@@ -11,6 +11,9 @@
  * repository written ahead of its caller tends to guess at the wrong
  * shape.
  */
+export * from "./retention/retention-policy.js";
+export * from "./repositories/evidence-repository.js";
+export * from "./repositories/prisma-evidence-repository.js";
 export { PrismaClient, Prisma } from "@prisma/client";
 export type {
   Tenant,

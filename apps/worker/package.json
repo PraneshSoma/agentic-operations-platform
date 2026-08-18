@@ -11,6 +11,7 @@
     "@aop/contracts": "workspace:*",
     "@aop/action-executor": "workspace:*",
     "@aop/context-service": "workspace:*",
+    "@aop/evidence-ledger": "workspace:*",
     "@aop/identity": "workspace:*",
     "@aop/policy-engine": "workspace:*",
     "@aop/secrets": "workspace:*"

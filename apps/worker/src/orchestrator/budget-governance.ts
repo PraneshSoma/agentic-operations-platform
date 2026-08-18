@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { EvidenceSchema, type Evidence, type ExecutionState, type OperationalProcedureContract } from "@aop/contracts";
+import { computeRetention } from "@aop/evidence-ledger";
 import type { ExecutionStateMachine } from "./state-machine.js";
 import type { ExecutionStateStore } from "./execution-state-store.js";
 import type { EvidenceRecorder } from "./evidence-recorder.js";
@@ -149,11 +150,9 @@ async function recordBudgetEvidence(
     relationships: {},
     integrity: { created_at: now.toISOString(), content_hash: `sha256:placeholder-budget-${execution.execution_id}-${now.getTime()}` },
     retention_class: "operational_state",
-    // Same naive dev-default as state-machine.ts's own evidence writes —
-    // real per-class retention computation is E-01's job (ADR-011).
-    retention_expires_at: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    retention_policy_version: "v0-dev-default",
-    legal_hold: false,
+    // Real per-class retention computation (E-01, ADR-011) — replacing
+    // D-06's disclosed naive 30-day placeholder.
+    ...computeRetention("operational_state", now),
   });
 
   await evidenceRecorder.record(evidence);
