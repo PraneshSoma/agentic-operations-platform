@@ -11,6 +11,14 @@ export * from "./schemas/proposed-action.js";
 export * from "./schemas/policy-decision.js";
 export * from "./schemas/execution-result.js";
 export * from "./schemas/evidence.js";
+export * from "./schemas/execution-state.js";
+export * from "./schemas/context-package.js";
+export * from "./schemas/action-definition.js";
+export * from "./schemas/connector-descriptor.js";
+export * from "./schemas/execution-authorization.js";
+export * from "./schemas/preflight-result.js";
+export * from "./schemas/opc-match-result.js";
+export * from "./schemas/verification-result.js";
 
 /**
  * Retained from the pre-Build scaffold — proved the workspace toolchain
