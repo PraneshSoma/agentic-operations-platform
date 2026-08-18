@@ -7,6 +7,7 @@ import {
   type ExecutionResult,
   type PreconditionSet,
   type PreflightResult,
+  type StatusCheckResult,
 } from "@aop/contracts";
 import type { SecretResolver } from "@aop/secrets";
 import { ExpiredAuthorizationError, MissingAuthorizationError, type ActionConnector, type ValidationResult } from "./action-connector.js";
@@ -58,6 +59,10 @@ function assertAuthorization(authorization: ExecutionAuthorization | undefined, 
 export class SimulatedActionConnector implements ActionConnector {
   private readonly targetState = new Map<string, unknown>();
   private readonly executeSnapshots = new Map<string, ReadonlyMap<string, unknown>>();
+  /** operation_id -> the ExecutionResult it genuinely produced — statusCheck()'s real source of truth (D-07), not a stub. */
+  private readonly completedOperations = new Map<string, ExecutionResult>();
+  /** Test/observability only — stages a genuinely inconclusive statusCheck() answer for a given operation_id, simulating "the connector can't tell." */
+  private readonly inconclusiveOperationIds = new Set<string>();
 
   constructor(
     private readonly connectorDescriptor: ConnectorDescriptor,
@@ -115,6 +120,7 @@ export class SimulatedActionConnector implements ActionConnector {
     action: ActionDefinition,
     parameters: Record<string, unknown>,
     authorization: ExecutionAuthorization | undefined,
+    operationId: string,
   ): Promise<ExecutionResult> {
     const now = this.now();
     assertAuthorization(authorization, "execute", now);
@@ -140,7 +146,39 @@ export class SimulatedActionConnector implements ActionConnector {
     });
 
     this.executeSnapshots.set(result.execution_result_id, priorValues);
+    // Genuinely recorded, not stubbed — statusCheck() answers CONFIRMED_EXECUTED
+    // from this map, the same way a real system's own idempotency-key
+    // bookkeeping would let it answer a later query about operationId.
+    this.completedOperations.set(operationId, result);
     return result;
+  }
+
+  /** Test/observability helper — stages a genuinely inconclusive statusCheck() answer for the given operation_id (D-07). */
+  stageInconclusiveStatusCheck(operationId: string): void {
+    this.inconclusiveOperationIds.add(operationId);
+  }
+
+  async statusCheck(operationId: string, _actionVersion: string, connectorVersion: string): Promise<StatusCheckResult> {
+    if (connectorVersion !== this.connectorDescriptor.definition_version) {
+      // LLD-v1 §6: version fields let the connector "reject a check
+      // against a build it doesn't recognize rather than guessing" — an
+      // unrecognized build answers INCONCLUSIVE, never a confident guess.
+      return {
+        outcome: "INCONCLUSIVE",
+        detail: `connector build "${this.connectorDescriptor.definition_version}" does not recognize connector_version "${connectorVersion}"`,
+      };
+    }
+
+    if (this.inconclusiveOperationIds.has(operationId)) {
+      return { outcome: "INCONCLUSIVE", detail: "simulated: connector could not confirm this operation" };
+    }
+
+    const completed = this.completedOperations.get(operationId);
+    if (completed) {
+      return { outcome: "CONFIRMED_EXECUTED", detail: `execution_result_id "${completed.execution_result_id}"` };
+    }
+
+    return { outcome: "CONFIRMED_NOT_EXECUTED" };
   }
 
   async rollback(executionResult: ExecutionResult, authorization: ExecutionAuthorization | undefined): Promise<ExecutionResult> {

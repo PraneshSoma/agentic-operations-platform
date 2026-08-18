@@ -135,18 +135,18 @@ describe("SimulatedActionConnector — implements the full ActionConnector inter
 
   it("CRITICAL: execute() rejects when called without a resolved ExecutionAuthorization", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map(), () => NOW);
-    await expect(connector.execute(actionDefinition(), { version: "2.0.0" }, undefined)).rejects.toThrow(MissingAuthorizationError);
+    await expect(connector.execute(actionDefinition(), { version: "2.0.0" }, undefined, "op_1")).rejects.toThrow(MissingAuthorizationError);
   });
 
   it("execute() rejects an expired ExecutionAuthorization", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map(), () => NOW);
     const expired = authorization({ delegation: { token_type: "none", scopes: [], issued_at: "2026-08-18T00:00:00.000Z", expires_at: "2026-08-18T00:10:00.000Z" } });
-    await expect(connector.execute(actionDefinition(), { version: "2.0.0" }, expired)).rejects.toThrow(ExpiredAuthorizationError);
+    await expect(connector.execute(actionDefinition(), { version: "2.0.0" }, expired, "op_1")).rejects.toThrow(ExpiredAuthorizationError);
   });
 
   it("execute() genuinely mutates the simulated target and returns a schema-valid ExecutionResult", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map([["version", "1.2.3"]]), () => NOW);
-    const result = await connector.execute(actionDefinition(), { version: "1.3.0" }, authorization());
+    const result = await connector.execute(actionDefinition(), { version: "1.3.0" }, authorization(), "op_1");
     expect(result.status).toBe("SUCCESS");
     expect(result.proposal_id).toBe("prop_1");
     expect(connector.getTargetState("version")).toBe("1.3.0");
@@ -154,13 +154,13 @@ describe("SimulatedActionConnector — implements the full ActionConnector inter
 
   it("rollback() rejects when called without a resolved ExecutionAuthorization", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map([["version", "1.2.3"]]), () => NOW);
-    const executed = await connector.execute(actionDefinition(), { version: "1.3.0" }, authorization());
+    const executed = await connector.execute(actionDefinition(), { version: "1.3.0" }, authorization(), "op_1");
     await expect(connector.rollback!(executed, undefined)).rejects.toThrow(MissingAuthorizationError);
   });
 
   it("rollback() genuinely reverts the simulated target to its pre-execute state", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map([["version", "1.2.3"]]), () => NOW);
-    const executed = await connector.execute(actionDefinition(), { version: "1.3.0" }, authorization());
+    const executed = await connector.execute(actionDefinition(), { version: "1.3.0" }, authorization(), "op_1");
     expect(connector.getTargetState("version")).toBe("1.3.0");
 
     const rolledBack = await connector.rollback!(executed, authorization());
@@ -170,7 +170,7 @@ describe("SimulatedActionConnector — implements the full ActionConnector inter
 
   it("rollback() deletes a key entirely when execute() introduced it and no prior value existed", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map(), () => NOW); // "new_field" absent from the start
-    const executed = await connector.execute(actionDefinition(), { new_field: "value" }, authorization());
+    const executed = await connector.execute(actionDefinition(), { new_field: "value" }, authorization(), "op_1");
     expect(connector.getTargetState("new_field")).toBe("value");
 
     await connector.rollback!(executed, authorization());
@@ -179,7 +179,7 @@ describe("SimulatedActionConnector — implements the full ActionConnector inter
 
   it("rollback() throws when no execute() snapshot exists for the given execution result", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map(), () => NOW);
-    const fakeResult = { ...(await connector.execute(actionDefinition(), { x: 1 }, authorization())), execution_result_id: "never_executed" };
+    const fakeResult = { ...(await connector.execute(actionDefinition(), { x: 1 }, authorization(), "op_1")), execution_result_id: "never_executed" };
     await expect(connector.rollback!(fakeResult, authorization())).rejects.toThrow(/No rollback snapshot/);
   });
 
@@ -188,10 +188,40 @@ describe("SimulatedActionConnector — implements the full ActionConnector inter
     expect(connector.descriptor()).toBe(descriptor);
   });
 
+  it("statusCheck() returns CONFIRMED_EXECUTED for an operation_id that genuinely completed, from real bookkeeping — not a stub", async () => {
+    const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map([["version", "1.2.3"]]), () => NOW);
+    await connector.execute(actionDefinition(), { version: "1.3.0" }, authorization(), "op_1");
+
+    const result = await connector.statusCheck("op_1", "1.0.0", "1.0.0");
+    expect(result.outcome).toBe("CONFIRMED_EXECUTED");
+  });
+
+  it("statusCheck() returns CONFIRMED_NOT_EXECUTED for an operation_id that was never executed", async () => {
+    const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map(), () => NOW);
+    const result = await connector.statusCheck("op_never_ran", "1.0.0", "1.0.0");
+    expect(result.outcome).toBe("CONFIRMED_NOT_EXECUTED");
+  });
+
+  it("CRITICAL: statusCheck() returns INCONCLUSIVE (never a confident guess) when staged, even for an operation_id that did execute", async () => {
+    const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map([["version", "1.2.3"]]), () => NOW);
+    await connector.execute(actionDefinition(), { version: "1.3.0" }, authorization(), "op_1");
+    connector.stageInconclusiveStatusCheck("op_1");
+
+    const result = await connector.statusCheck("op_1", "1.0.0", "1.0.0");
+    expect(result.outcome).toBe("INCONCLUSIVE");
+  });
+
+  it("statusCheck() returns INCONCLUSIVE when connector_version doesn't match this build — never guesses against an unrecognized build", async () => {
+    const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map(), () => NOW);
+    const result = await connector.statusCheck("op_1", "1.0.0", "9.9.9");
+    expect(result.outcome).toBe("INCONCLUSIVE");
+    expect(result.detail).toContain("9.9.9");
+  });
+
   it("defaults `now` to the real wall clock when not injected", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver);
     const before = Date.now();
-    const result = await connector.execute(actionDefinition(), { x: 1 }, authorization({ delegation: { token_type: "none", scopes: [], issued_at: new Date().toISOString(), expires_at: new Date(Date.now() + 60_000).toISOString() } }));
+    const result = await connector.execute(actionDefinition(), { x: 1 }, authorization({ delegation: { token_type: "none", scopes: [], issued_at: new Date().toISOString(), expires_at: new Date(Date.now() + 60_000).toISOString() } }), "op_1");
     const after = Date.now();
     const startedAtMs = new Date(result.started_at).getTime();
     expect(startedAtMs).toBeGreaterThanOrEqual(before);

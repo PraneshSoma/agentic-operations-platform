@@ -21,6 +21,11 @@ import type { ActionConnector } from "./action-connector.js";
  * required context, never an implicit pass: it blocks exactly like
  * DRIFTED, it's just reported under its own outcome so a caller can tell
  * "the world changed" apart from "we couldn't tell whether it changed."
+ *
+ * `operationId` (widened in D-07) is the caller's stable, pre-derived
+ * idempotency key — this function never generates or touches it, only
+ * threads it straight through to `connector.execute()`, exactly once,
+ * on the one path that actually calls it.
  */
 export type GatedExecutionResult =
   | { outcome: "EXECUTED"; preflightResult: PreflightResult; executionResult: ExecutionResult }
@@ -33,6 +38,7 @@ export async function runGatedExecution(
   parameters: Record<string, unknown>,
   expectedPreconditions: PreconditionSet,
   authorization: ExecutionAuthorization,
+  operationId: string,
 ): Promise<GatedExecutionResult> {
   const preflightResult = await connector.preflight(action, parameters, expectedPreconditions);
 
@@ -43,6 +49,6 @@ export async function runGatedExecution(
     return { outcome: "BLOCKED_UNKNOWN", preflightResult };
   }
 
-  const executionResult = await connector.execute(action, parameters, authorization);
+  const executionResult = await connector.execute(action, parameters, authorization, operationId);
   return { outcome: "EXECUTED", preflightResult, executionResult };
 }

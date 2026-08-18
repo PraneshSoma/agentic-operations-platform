@@ -4,6 +4,7 @@ import type {
   ConnectorDescriptor,
   ExecutionAuthorization,
   ExecutionResult,
+  StatusCheckResult,
   VerificationResult,
 } from "@aop/contracts";
 import { EnvVarSecretResolver } from "@aop/secrets";
@@ -108,12 +109,15 @@ class RollbackMustNotBeCalledConnector implements ActionConnector {
   async rollback(): Promise<ExecutionResult> {
     throw new Error("rollback() must never be called — this is the bug D-04 exists to prevent");
   }
+  async statusCheck(): Promise<StatusCheckResult> {
+    throw new Error("not used in this test");
+  }
 }
 
 describe("runRollbackDecision() — three-class compensation gate (D-04, F-14, ADR-001)", () => {
   it("REVERSIBLE + ROLLBACK recommended -> genuinely rolls back via connector.rollback(), state reverts", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map([["version", "1.2.3"]]), () => NOW);
-    const executed = await connector.execute(actionDefinition(), { version: "1.3.0" }, authorization());
+    const executed = await connector.execute(actionDefinition(), { version: "1.3.0" }, authorization(), "op_1");
     expect(connector.getTargetState("version")).toBe("1.3.0");
 
     const result = await runRollbackDecision(
@@ -202,6 +206,9 @@ describe("runRollbackDecision() — three-class compensation gate (D-04, F-14, A
       }
       async execute(): Promise<never> {
         throw new Error("not used");
+      }
+      async statusCheck(): Promise<StatusCheckResult> {
+        throw new Error("not used in this test");
       }
       // no rollback() at all — it's optional on the interface
     }

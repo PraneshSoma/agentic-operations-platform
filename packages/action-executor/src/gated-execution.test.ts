@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ActionDefinition, ConnectorDescriptor, ExecutionAuthorization, ExecutionResult, PreconditionSet, PreflightResult } from "@aop/contracts";
+import type { ActionDefinition, ConnectorDescriptor, ExecutionAuthorization, ExecutionResult, PreconditionSet, PreflightResult, StatusCheckResult } from "@aop/contracts";
 import { EnvVarSecretResolver } from "@aop/secrets";
 import type { ActionConnector, ValidationResult } from "./action-connector.js";
 import { runGatedExecution } from "./gated-execution.js";
@@ -72,6 +72,9 @@ class ExecuteMustNotBeCalledConnector implements ActionConnector {
   async execute(): Promise<ExecutionResult> {
     throw new Error("execute() must never be called when preflight blocks — this is the bug D-02 exists to prevent");
   }
+  async statusCheck(): Promise<StatusCheckResult> {
+    throw new Error("not used in this test");
+  }
 }
 
 const preconditions: PreconditionSet = {
@@ -81,7 +84,7 @@ const preconditions: PreconditionSet = {
 describe("runGatedExecution() — structural preflight-then-execute gate (D-02, F-10)", () => {
   it("MATCH: runs preflight, then executes, and returns the EXECUTED outcome with both results", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map([["version", "1.2.3"]]), () => NOW);
-    const result = await runGatedExecution(connector, actionDefinition(), { version: "1.3.0" }, preconditions, authorization());
+    const result = await runGatedExecution(connector, actionDefinition(), { version: "1.3.0" }, preconditions, authorization(), "op_1");
 
     expect(result.outcome).toBe("EXECUTED");
     if (result.outcome !== "EXECUTED") return;
@@ -95,7 +98,7 @@ describe("runGatedExecution() — structural preflight-then-execute gate (D-02, 
       status: "DRIFTED",
       drifted_fields: [{ field_ref: "version", expected: "1.2.3", observed: "1.2.4" }],
     });
-    const result = await runGatedExecution(connector, actionDefinition(), { version: "1.3.0" }, preconditions, authorization());
+    const result = await runGatedExecution(connector, actionDefinition(), { version: "1.3.0" }, preconditions, authorization(), "op_1");
 
     expect(result.outcome).toBe("BLOCKED_DRIFTED");
     if (result.outcome !== "BLOCKED_DRIFTED") return;
@@ -104,7 +107,7 @@ describe("runGatedExecution() — structural preflight-then-execute gate (D-02, 
 
   it("CRITICAL: UNKNOWN is treated as missing required context, never an implicit pass — execute() is never reached", async () => {
     const connector = new ExecuteMustNotBeCalledConnector({ status: "UNKNOWN", drifted_fields: [] });
-    const result = await runGatedExecution(connector, actionDefinition(), { version: "1.3.0" }, preconditions, authorization());
+    const result = await runGatedExecution(connector, actionDefinition(), { version: "1.3.0" }, preconditions, authorization(), "op_1");
 
     expect(result.outcome).toBe("BLOCKED_UNKNOWN");
   });
@@ -112,7 +115,7 @@ describe("runGatedExecution() — structural preflight-then-execute gate (D-02, 
   it("a deliberately staged drift against the SimulatedActionConnector's own preconditions is caught and blocks execution", async () => {
     // Target state was mutated out from under the plan after it was proposed — staged drift.
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map([["version", "1.2.4"]]), () => NOW);
-    const result = await runGatedExecution(connector, actionDefinition(), { version: "1.3.0" }, preconditions, authorization());
+    const result = await runGatedExecution(connector, actionDefinition(), { version: "1.3.0" }, preconditions, authorization(), "op_1");
 
     expect(result.outcome).toBe("BLOCKED_DRIFTED");
     // The target must be provably untouched — execute() never ran.
@@ -148,8 +151,11 @@ describe("runGatedExecution() — structural preflight-then-execute gate (D-02, 
           executor_build_hash: "test-build",
         };
       }
+      async statusCheck(): Promise<StatusCheckResult> {
+        throw new Error("not used in this test");
+      }
     }
-    await runGatedExecution(new OrderTrackingConnector(), actionDefinition(), {}, preconditions, authorization());
+    await runGatedExecution(new OrderTrackingConnector(), actionDefinition(), {}, preconditions, authorization(), "op_1");
     expect(calls).toEqual(["preflight", "execute"]);
   });
 });

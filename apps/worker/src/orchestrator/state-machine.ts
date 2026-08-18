@@ -53,21 +53,33 @@ const ALLOWED_TRANSITIONS: Record<State, readonly State[]> = {
 
 /**
  * The proof required to leave EXECUTION_UNCERTAIN (LLD-v1 §4, ADR-004).
- * There is deliberately no exit that doesn't carry one of these three —
+ * There is deliberately no exit that doesn't carry one of these four —
  * "no default/timeout fallback" is enforced by the type system, not just
  * documented: transitionTo() below requires this parameter whenever the
  * execution is currently EXECUTION_UNCERTAIN, and rejects any proof/
- * target-state combination that doesn't match the LLD §4 diagram.
+ * target-state combination that doesn't match the LLD §4/§7.2 diagrams.
+ *
+ * `inconclusive_idempotent_retry` was added in story D-07 — B-03's
+ * original three kinds covered "proven not executed," "proven executed,"
+ * and "inconclusive + not idempotent" (-> escalate), but LLD-v1 §7.2's
+ * full sequence has a fourth branch B-03 didn't yet need: "inconclusive +
+ * provably idempotent" is ALSO safe to retry, for a different reason than
+ * `operation_did_not_occur` (we don't know it didn't happen — we know
+ * re-attempting is harmless even if it did). Reusing
+ * `operation_did_not_occur` for that case would misrepresent what was
+ * actually proven; a fourth, honestly-named kind is the fix.
  */
 export type UncertainExitProof =
   | { kind: "operation_did_not_occur"; operation_id: string }
   | { kind: "operation_completed"; operation_id: string }
-  | { kind: "inconclusive_not_idempotent"; operation_id: string; reason: string };
+  | { kind: "inconclusive_not_idempotent"; operation_id: string; reason: string }
+  | { kind: "inconclusive_idempotent_retry"; operation_id: string; reason: string };
 
 const UNCERTAIN_EXIT_TARGET: Record<UncertainExitProof["kind"], State> = {
   operation_did_not_occur: "EXECUTING",
   operation_completed: "VERIFYING",
   inconclusive_not_idempotent: "ESCALATED_HUMAN_OVERRIDE",
+  inconclusive_idempotent_retry: "EXECUTING",
 };
 
 export interface CreateExecutionInput {

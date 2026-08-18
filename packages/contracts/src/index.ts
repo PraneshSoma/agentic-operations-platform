@@ -26,6 +26,8 @@ export * from "./schemas/identity-principal.js";
 export * from "./schemas/policy-rule.js";
 export * from "./schemas/approval.js";
 export * from "./schemas/halt-request.js";
+export * from "./schemas/execution-step-marker.js";
+export * from "./schemas/status-check.js";
 export * from "./llm-provider.js";
 
 /**

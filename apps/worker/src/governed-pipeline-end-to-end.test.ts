@@ -254,7 +254,7 @@ describe("Governed pipeline — end to end (D-01, real production mutation never
     });
     expect(preflightResult.status).toBe("MATCH");
 
-    const executionResult = await actionConnector.execute(restartAction, { version: "1.3.0" }, gateResult.authorization);
+    const executionResult = await actionConnector.execute(restartAction, { version: "1.3.0" }, gateResult.authorization, "op_test_e2e");
     expect(executionResult.status).toBe("SUCCESS");
     expect(executionResult.proposal_id).toBe("prop_1");
     // The ONLY thing that changed is the connector's own in-memory map —

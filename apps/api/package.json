@@ -9,6 +9,7 @@
     "dev": "node --import tsx src/index.ts"
   },
   "dependencies": {
+    "@aop/action-executor": "workspace:*",
     "@aop/contracts": "workspace:*",
     "@aop/identity": "workspace:*",
     "@aop/policy-engine": "workspace:*",
