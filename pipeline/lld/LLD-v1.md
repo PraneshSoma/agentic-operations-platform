@@ -1,6 +1,6 @@
 # LLD v1 — AOP-001
 
-**Phase:** 2 (Design) · **Agent:** lld · **Status:** PROPOSED (Revision 2) · **awaiting HIL gate**
+**Phase:** 2 (Design) · **Agent:** lld · **Status:** ACCEPTED
 **Inputs:** 12 `ACCEPTED` ADRs (`pipeline/adr/`), `pipeline/requirements.md`
 (Revision 2), spec §32's entity inventory. Only **additive** changes to
 spec-defined contracts throughout, per ADR-001's established convention.
@@ -20,6 +20,9 @@ via a follow-up commit, not by rewriting the prior commit's history.
 - 2026-08-17 — Revision 2: six blocking findings + six non-blocking
   corrections addressed in place — see per-section notes below. This is the
   version actually presented for gate approval.
+- 2026-08-17 — **ACCEPTED** at HIL gate (product owner). Per
+  `loop/agents/lld.md`'s versioning rule, immutable from this point — a
+  future change is LLD-v2.md, not an in-place edit of this file.
 
 ---
 
