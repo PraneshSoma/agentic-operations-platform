@@ -112,6 +112,14 @@ describe("SimulatedActionConnector — implements the full ActionConnector inter
     expect(outOfRange.status).toBe("DRIFTED");
   });
 
+  it("preflight() treats within_range as drifted when the observed value isn't a number at all", async () => {
+    const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map([["cpu_percent", "not-a-number"]]), () => NOW);
+    const result = await connector.preflight(actionDefinition(), {}, {
+      checks: [{ field_ref: "cpu_percent", expected_value: { min: 0, max: 80 }, tolerance: "within_range" }],
+    });
+    expect(result.status).toBe("DRIFTED");
+  });
+
   it("preflight() supports unchanged_since tolerance", async () => {
     const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map([["owner", "team-checkout"]]), () => NOW);
     const unchanged = await connector.preflight(actionDefinition(), {}, {
@@ -158,6 +166,15 @@ describe("SimulatedActionConnector — implements the full ActionConnector inter
     const rolledBack = await connector.rollback!(executed, authorization());
     expect(rolledBack.status).toBe("SUCCESS");
     expect(connector.getTargetState("version")).toBe("1.2.3");
+  });
+
+  it("rollback() deletes a key entirely when execute() introduced it and no prior value existed", async () => {
+    const connector = new SimulatedActionConnector(descriptor, secretResolver, new Map(), () => NOW); // "new_field" absent from the start
+    const executed = await connector.execute(actionDefinition(), { new_field: "value" }, authorization());
+    expect(connector.getTargetState("new_field")).toBe("value");
+
+    await connector.rollback!(executed, authorization());
+    expect(connector.getTargetState("new_field")).toBeUndefined();
   });
 
   it("rollback() throws when no execute() snapshot exists for the given execution result", async () => {
