@@ -1,12 +1,14 @@
 import {
   ContextPackageSchema,
   EvidenceSchema,
+  ExecutionResultSchema,
   ExecutionStateSchema,
   PolicyDecisionSchema,
   ProposedActionSchema,
   VerificationResultSchema,
   type ContextPackage,
   type Evidence,
+  type ExecutionResult,
   type ExecutionState,
   type PolicyDecision,
   type ProposedAction,
@@ -15,6 +17,7 @@ import {
 import type { PrismaClient } from "@prisma/client";
 import { buildExecutionHistory, type ExecutionHistory } from "./execution-history.js";
 import { buildEngineeringContextPackageView, type ControlTowerRepository, type EngineeringContextPackageView } from "./engineering-context-package-view.js";
+import { buildVersionBindingView, type VersionBindingView } from "./version-binding-view.js";
 
 /**
  * Prisma-backed ControlTowerRepository (story E-05, F-16, OI-REQ-02). A
@@ -73,10 +76,82 @@ export class PrismaControlTowerRepository implements ControlTowerRepository {
     return buildEngineeringContextPackageView({ execution, contextPackage, proposedActions, policyDecisions, verifications, evidence });
   }
 
+  async getVersionBinding(tenantId: string, executionId: string): Promise<VersionBindingView | undefined> {
+    const executionRow = await this.prisma.execution.findUnique({ where: { execution_id: executionId } });
+    if (!executionRow || executionRow.tenant_id !== tenantId) return undefined;
+    const execution: ExecutionState = ExecutionStateSchema.parse(iso(executionRow, ["created_at", "updated_at"]));
+
+    const proposalRows = await this.prisma.proposedActionRow.findMany({ where: { tenant_id: tenantId, execution_id: executionId } });
+    const proposedActions: ProposedAction[] = proposalRows.map((r) => ProposedActionSchema.parse(iso(r, ["created_at"])));
+    const proposalIds = proposedActions.map((p) => p.proposal_id);
+
+    const decisionRows = proposalIds.length
+      ? await this.prisma.policyDecisionRow.findMany({ where: { tenant_id: tenantId, proposal_id: { in: proposalIds } } })
+      : [];
+    const policyDecisions: PolicyDecision[] = decisionRows.map((r) => PolicyDecisionSchema.parse(iso(r, ["created_at"])));
+
+    const resultRows = proposalIds.length
+      ? await this.prisma.actionExecutionRow.findMany({ where: { tenant_id: tenantId, proposal_id: { in: proposalIds } } })
+      : [];
+    const executionResults: ExecutionResult[] = resultRows.map((r) => ExecutionResultSchema.parse(iso(r, ["started_at", "completed_at"])));
+
+    // Connector definition versions: the connectors that assembled this
+    // execution's context are named in the context package's provenance;
+    // join their connector_definition rows for the pinned versions.
+    const connectorDefinitionVersions = await this.fetchConnectorDefinitionVersions(tenantId, execution.request_id);
+
+    // Frozen plan id / approval id have no dedicated table yet — read them
+    // from the evidence chain where the orchestrator recorded them.
+    const evidence = await this.fetchEvidence(tenantId, executionId);
+    const frozenPlanIds = collectStructuredIds(evidence, "PLAN", "plan_id");
+    const approvalIds = collectStructuredIds(evidence, "APPROVAL", "approval_id");
+
+    return buildVersionBindingView({
+      execution,
+      proposedActions,
+      policyDecisions,
+      executionResults,
+      connectorDefinitionVersions,
+      frozenPlanIds,
+      approvalIds,
+    });
+  }
+
+  private async fetchConnectorDefinitionVersions(
+    tenantId: string,
+    requestId: string,
+  ): Promise<Array<{ connector_id: string; definition_version: string }>> {
+    const contextRow = await this.prisma.contextPackageRow.findFirst({
+      where: { tenant_id: tenantId, request_id: requestId },
+      orderBy: { assembled_at: "desc" },
+    });
+    if (!contextRow) return [];
+    const provenance = Array.isArray(contextRow.provenance) ? (contextRow.provenance as Array<{ connector_ref?: string }>) : [];
+    const connectorRefs = [...new Set(provenance.map((p) => p.connector_ref).filter((r): r is string => typeof r === "string"))];
+    if (connectorRefs.length === 0) return [];
+
+    const rows = await this.prisma.connectorDefinition.findMany({
+      where: { tenant_id: tenantId, connector_id: { in: connectorRefs } },
+      select: { connector_id: true, definition_version: true },
+    });
+    return rows.map((r) => ({ connector_id: r.connector_id, definition_version: r.definition_version }));
+  }
+
   private async fetchEvidence(tenantId: string, executionId: string): Promise<Evidence[]> {
     const rows = await this.prisma.evidenceRow.findMany({ where: { tenant_id: tenantId, execution_id: executionId } });
     return rows.map((r) => EvidenceSchema.parse(iso(r, ["retention_expires_at"])));
   }
+}
+
+/** Pulls a structured id (e.g. plan_id / approval_id) from evidence records of a given type. */
+function collectStructuredIds(evidence: Evidence[], type: Evidence["type"], key: string): string[] {
+  const ids: string[] = [];
+  for (const record of evidence) {
+    if (record.type !== type) continue;
+    const value = record.content.structured_data?.[key];
+    if (typeof value === "string") ids.push(value);
+  }
+  return ids;
 }
 
 /**

@@ -43,4 +43,19 @@ export async function registerControlTowerRoutes(app: FastifyInstance, options: 
       return reply.code(200).send(history);
     },
   );
+
+  // Version binding for replayability (F-20, story E-06) — a read
+  // guarantee: every element in LLD §0's version-binding table for one
+  // execution, joined from already-persisted fields, no new write path.
+  app.get<{ Params: { tenantId: string; executionId: string } }>(
+    "/tenants/:tenantId/executions/:executionId/version-binding",
+    async (request, reply) => {
+      const { tenantId, executionId } = request.params;
+      const binding = await options.controlTowerRepository.getVersionBinding(tenantId, executionId);
+      if (!binding) {
+        return reply.code(404).send({ error: `no execution "${executionId}" for tenant "${tenantId}"` });
+      }
+      return reply.code(200).send(binding);
+    },
+  );
 }

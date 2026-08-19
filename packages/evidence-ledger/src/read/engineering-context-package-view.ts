@@ -7,6 +7,7 @@ import type {
   VerificationResult,
 } from "@aop/contracts";
 import { buildExecutionHistory, type ExecutionHistory } from "./execution-history.js";
+import type { VersionBindingView } from "./version-binding-view.js";
 
 /**
  * EngineeringContextPackageView (OI-REQ-02, LLD-v1 §0/§6, story E-05) —
@@ -63,4 +64,6 @@ export function buildEngineeringContextPackageView(parts: EngineeringContextPack
 export interface ControlTowerRepository {
   getCompositeContextPackage(tenantId: string, executionId: string): Promise<EngineeringContextPackageView | undefined>;
   reconstructExecutionHistory(tenantId: string, executionId: string): Promise<ExecutionHistory | undefined>;
+  /** The immutable version binding for replayability (F-20, story E-06) — a read guarantee over already-persisted fields. */
+  getVersionBinding(tenantId: string, executionId: string): Promise<VersionBindingView | undefined>;
 }

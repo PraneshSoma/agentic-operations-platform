@@ -22,6 +22,7 @@ export * from "./outbox/prisma-ledger-writer.js";
 export * from "./outbox/prisma-outbox-store.js";
 export * from "./read/execution-history.js";
 export * from "./read/engineering-context-package-view.js";
+export * from "./read/version-binding-view.js";
 export * from "./read/prisma-control-tower-repository.js";
 export { PrismaClient, Prisma } from "@prisma/client";
 export type {
