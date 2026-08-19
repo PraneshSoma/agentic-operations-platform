@@ -53,6 +53,11 @@ export default defineConfig({
         // to (buildExecutionHistory, buildEngineeringContextPackageView)
         // stay fully covered in the default gate.
         "packages/evidence-ledger/src/read/prisma-control-tower-repository.ts",
+        // Prisma-bound tenant-activation repository (story E-07): the
+        // tenant/principal reads and the activation write are DB-level,
+        // integration-tested against a real Postgres. The pure gate
+        // (evaluateActivation) stays fully covered in the default gate.
+        "packages/evidence-ledger/src/activation/prisma-tenant-activation-repository.ts",
       ],
     },
   },

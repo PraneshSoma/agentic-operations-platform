@@ -2,11 +2,12 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { IdentityResolver } from "@aop/identity";
 import { LocalDevIdentityResolver } from "@aop/identity";
 import type { ActionConnector } from "@aop/action-executor";
-import type { ControlTowerRepository } from "@aop/evidence-ledger";
+import type { ControlTowerRepository, TenantActivationRepository } from "@aop/evidence-ledger";
 import { registerWebhookRoutes } from "./routes/webhooks.js";
 import { registerApprovalRoutes } from "./routes/approvals.js";
 import { registerStatusCheckRoutes } from "./routes/status-check.js";
 import { registerControlTowerRoutes } from "./routes/control-tower.js";
+import { registerOnboardingRoutes } from "./routes/onboarding.js";
 import { InMemoryRawPayloadStore, type RawPayloadStore } from "./triggers/raw-payload-store.js";
 import { InMemoryApprovalContextStore, type ApprovalContextStore } from "./approvals/approval-context-store.js";
 
@@ -18,6 +19,8 @@ export interface BuildAppOptions {
   connectorRegistry?: ReadonlyMap<string, ActionConnector>;
   /** The Control Tower read layer (E-05). Read routes register only when provided — there's no in-memory default for a read-over-the-ledger surface. */
   controlTowerRepository?: ControlTowerRepository;
+  /** The tenant activation gate's read/write layer (E-07). The onboarding route registers only when provided. */
+  tenantActivationRepository?: TenantActivationRepository;
   logger?: boolean;
 }
 
@@ -49,6 +52,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     await registerStatusCheckRoutes(instance, { connectorRegistry });
     if (options.controlTowerRepository) {
       await registerControlTowerRoutes(instance, { controlTowerRepository: options.controlTowerRepository });
+    }
+    if (options.tenantActivationRepository) {
+      await registerOnboardingRoutes(instance, { tenantActivationRepository: options.tenantActivationRepository });
     }
   });
 
