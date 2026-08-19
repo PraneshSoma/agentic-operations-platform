@@ -4,6 +4,14 @@ A ~10-minute live demo you can run in a terminal. It runs the **real
 platform code** in-process (the same code the 706-test suite covers) — no
 mocks, no slides required, deterministic every time.
 
+> **Want an interactive version instead?** There's a live web **Control
+> Tower** UI — one trigger, a board that streams the pipeline in real time, an
+> approval gate you can act on from the UI *or* a real Slack thread, and
+> buttons for all five guardrails. Run `pnpm ui` (or `./run-demo.sh ui`) and
+> open <http://localhost:4000>. Full guide, including the real-Slack setup:
+> [`apps/control-tower/README.md`](apps/control-tower/README.md). The CLI demo
+> below stays the quickest, most deterministic option for a talk.
+
 ## Run it locally (from a fresh machine)
 
 Prerequisites: **Node 20+** and **pnpm** (via `corepack`, bundled with
