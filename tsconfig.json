@@ -11,6 +11,7 @@
     { "path": "packages/identity" },
     { "path": "packages/secrets" },
     { "path": "apps/api" },
-    { "path": "apps/worker" }
+    { "path": "apps/worker" },
+    { "path": "apps/demo" }
   ]
 }

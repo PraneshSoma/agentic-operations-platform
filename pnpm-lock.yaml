@@ -61,6 +61,43 @@ importers:
         specifier: ^4.19.1
         version: 4.23.12
 
+  apps/demo:
+    dependencies:
+      '@aop/action-executor':
+        specifier: workspace:*
+        version: link:../../packages/action-executor
+      '@aop/confidence':
+        specifier: workspace:*
+        version: link:../../packages/confidence
+      '@aop/context-service':
+        specifier: workspace:*
+        version: link:../../packages/context-service
+      '@aop/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@aop/evidence-ledger':
+        specifier: workspace:*
+        version: link:../../packages/evidence-ledger
+      '@aop/identity':
+        specifier: workspace:*
+        version: link:../../packages/identity
+      '@aop/policy-engine':
+        specifier: workspace:*
+        version: link:../../packages/policy-engine
+      '@aop/secrets':
+        specifier: workspace:*
+        version: link:../../packages/secrets
+      '@aop/verification-engine':
+        specifier: workspace:*
+        version: link:../../packages/verification-engine
+      '@aop/worker':
+        specifier: workspace:*
+        version: link:../worker
+    devDependencies:
+      tsx:
+        specifier: ^4.19.1
+        version: 4.23.12
+
   apps/worker:
     dependencies:
       '@aop/action-executor':

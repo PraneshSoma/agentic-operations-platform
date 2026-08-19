@@ -31,6 +31,11 @@ export default defineConfig({
       exclude: [
         "**/*.test.ts",
         "apps/*/src/index.ts",
+        // The narrated demo (apps/demo) is a runnable presentation script,
+        // not tested code — it exercises the same paths the suite covers,
+        // live, for an audience. Verified by running it (`pnpm demo`), not
+        // by unit tests.
+        "apps/demo/**",
         "packages/contracts/src/llm-provider.ts",
         "packages/identity/src/identity-resolver.ts",
         // Prisma-backed repository: append-only-ness and cross-tenant

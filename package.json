@@ -9,6 +9,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "build": "pnpm -r --if-present build",
+    "demo": "pnpm --filter @aop/demo start",
     "test": "vitest run",
     "test:integration": "VITEST_INTEGRATION=1 vitest run",
     "lint": "eslint .",
