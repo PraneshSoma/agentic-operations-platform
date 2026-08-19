@@ -95,7 +95,8 @@ describe("OutboxRelay — the separate relay process (E-02, ADR-005)", () => {
     store.seed(outboxEvent());
     const publisher: EventPublisher = {
       async publish() {
-        throw "plain string failure"; // eslint-disable-line @typescript-eslint/only-throw-error
+        // A non-Error thrown value (deliberately), to exercise the relay's String() coercion path.
+        return Promise.reject("plain string failure");
       },
     };
     const relay = new OutboxRelay(store, publisher, () => NOW);

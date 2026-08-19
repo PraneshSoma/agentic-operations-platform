@@ -28,6 +28,7 @@ export * from "./schemas/approval.js";
 export * from "./schemas/halt-request.js";
 export * from "./schemas/execution-step-marker.js";
 export * from "./schemas/status-check.js";
+export * from "./schemas/confidence-dimensions.js";
 export * from "./llm-provider.js";
 
 /**

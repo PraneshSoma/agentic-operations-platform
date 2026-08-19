@@ -7,6 +7,7 @@
     { "path": "packages/context-service" },
     { "path": "packages/action-executor" },
     { "path": "packages/verification-engine" },
+    { "path": "packages/confidence" },
     { "path": "packages/identity" },
     { "path": "packages/secrets" },
     { "path": "apps/api" },
