@@ -1,9 +1,11 @@
 import {
   ConfidenceDimensionsSchema,
   type ConfidenceDimensions,
+  type ConnectorDescriptor,
   type ContextPackage,
   type Evidence,
   type InvestigationResult,
+  type PolicyDecision,
   type VerificationResult,
 } from "@aop/contracts";
 
@@ -27,6 +29,10 @@ export interface ConfidenceInput {
   contextPackage: ContextPackage;
   /** Absent until the Verification Engine has run — surfaced as NOT_YET_VERIFIED, never an implicit pass. */
   verification?: VerificationResult;
+  /** The connectors that contributed context — their ordinal reliability_level feeds source_reliability (ADR-007). */
+  connectorDescriptors?: ConnectorDescriptor[];
+  /** Absent until the Policy Engine has run — surfaced as NOT_YET_EVALUATED, never an implicit ALLOW. */
+  policyDecision?: PolicyDecision;
 }
 
 export function assembleConfidenceDimensions(input: ConfidenceInput): ConfidenceDimensions {
@@ -36,7 +42,42 @@ export function assembleConfidenceDimensions(input: ConfidenceInput): Confidence
     contradictory_evidence: contradictoryEvidence(input.investigation, input.evidence),
     verification_confidence: verificationConfidence(input.verification),
     evidence_freshness: evidenceFreshness(input.contextPackage),
+    source_reliability: sourceReliability(input.connectorDescriptors ?? []),
+    policy_certainty: policyCertainty(input.policyDecision),
   });
+}
+
+const RELIABILITY_ORDER = ["LOW", "MEDIUM", "HIGH", "AUTHORITATIVE"] as const;
+type ReliabilityLevel = (typeof RELIABILITY_ORDER)[number];
+
+function sourceReliability(descriptors: ConnectorDescriptor[]): ConfidenceDimensions["source_reliability"] {
+  // Keyed per source to (connector_id, connector_version) — ADR-007's
+  // granularity, never a global type-level lookup. `lowest` is the honest
+  // ordinal worst-case (min level), not an averaged decimal.
+  const per_source = descriptors.map((d) => ({
+    connector_id: d.connector_id,
+    connector_version: d.definition_version,
+    reliability_level: d.reliability_level,
+  }));
+
+  let lowest: ReliabilityLevel | null = null;
+  for (const source of per_source) {
+    if (lowest === null || RELIABILITY_ORDER.indexOf(source.reliability_level) < RELIABILITY_ORDER.indexOf(lowest)) {
+      lowest = source.reliability_level;
+    }
+  }
+
+  return { lowest, per_source };
+}
+
+function policyCertainty(policyDecision: PolicyDecision | undefined): ConfidenceDimensions["policy_certainty"] {
+  if (!policyDecision) {
+    return { outcome: "NOT_YET_EVALUATED", hard_deny_reason_code: null };
+  }
+  // Categorical passthrough — a DENY is carried as DENY (ADR-008), never
+  // remapped to a "low confidence" figure. hard_deny_reason_code rides
+  // along when present so the reason is visible, not flattened away.
+  return { outcome: policyDecision.outcome, hard_deny_reason_code: policyDecision.hard_deny_reason_code ?? null };
 }
 
 function evidenceCoverage(investigation: InvestigationResult): ConfidenceDimensions["evidence_coverage"] {

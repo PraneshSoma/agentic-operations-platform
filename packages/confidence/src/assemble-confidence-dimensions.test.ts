@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ContextPackage, Evidence, InvestigationResult, VerificationResult } from "@aop/contracts";
+import type { ConnectorDescriptor, ContextPackage, Evidence, InvestigationResult, PolicyDecision, VerificationResult } from "@aop/contracts";
 import { assembleConfidenceDimensions } from "./assemble-confidence-dimensions.js";
 
 const NOW = "2026-08-18T12:00:00.000Z";
@@ -63,6 +63,38 @@ function contextPackage(overrides: Partial<ContextPackage> = {}): ContextPackage
   };
 }
 
+function connectorDescriptor(overrides: Partial<ConnectorDescriptor> = {}): ConnectorDescriptor {
+  return {
+    connector_id: "sim-app",
+    tenant_id: "tenant_1",
+    type: "api",
+    operations: [{ name: "get_state", input_schema: {}, output_schema: {} }],
+    authorization: { mode: "api_key", secret_ref: "secret://K" },
+    scopes: { environments: ["prod"], applications: ["checkout"] },
+    staleness: { max_age_seconds: 300, on_exceeded: "MARK_STALE" },
+    definition_version: "1.0.0",
+    supports_correlation: false,
+    is_idempotent: false,
+    reliability_level: "MEDIUM",
+    ...overrides,
+  };
+}
+
+function policyDecision(overrides: Partial<PolicyDecision> = {}): PolicyDecision {
+  return {
+    decision_id: "dec_1",
+    proposal_id: "prop_1",
+    policy_version: "v1",
+    effective_risk_class: "R2",
+    outcome: "REQUIRE_APPROVAL",
+    reasons: [],
+    evidence_summary: { precedent_count: 0, verified_success_count: 0, rollback_count: 0, failure_count: 0 },
+    requires_proposer_approver_separation: false,
+    created_at: NOW,
+    ...overrides,
+  };
+}
+
 function verification(overrides: Partial<VerificationResult> = {}): VerificationResult {
   return {
     verification_id: "ver_1",
@@ -78,13 +110,15 @@ function verification(overrides: Partial<VerificationResult> = {}): Verification
 }
 
 describe("assembleConfidenceDimensions() — the itemized confidence surface (E-03, F-17)", () => {
-  it("CRITICAL: surfaces all five dimensions individually, with no numeric rollup field anywhere", () => {
+  it("CRITICAL: surfaces all dimensions individually, with no numeric rollup field anywhere", () => {
     const dims = assembleConfidenceDimensions({ investigation: investigation(), evidence: [], contextPackage: contextPackage() });
     expect(Object.keys(dims).sort()).toEqual([
       "contradictory_evidence",
       "evidence_coverage",
       "evidence_freshness",
       "hypothesis_support",
+      "policy_certainty",
+      "source_reliability",
       "verification_confidence",
     ]);
     // Deep-scan: no key named score/confidence/percentage/overall_score at any level.
@@ -181,5 +215,61 @@ describe("assembleConfidenceDimensions() — the itemized confidence surface (E-
   it("is deterministic — identical inputs yield identical dimensions", () => {
     const input = { investigation: investigation(), evidence: [evidence()], contextPackage: contextPackage() };
     expect(assembleConfidenceDimensions(input)).toEqual(assembleConfidenceDimensions(input));
+  });
+
+  describe("source_reliability (E-04, ADR-007)", () => {
+    it("lists per-source ordinal reliability keyed to (connector_id, connector_version) — never a decimal", () => {
+      const dims = assembleConfidenceDimensions({
+        investigation: investigation(),
+        evidence: [],
+        contextPackage: contextPackage(),
+        connectorDescriptors: [connectorDescriptor({ connector_id: "sim-app", definition_version: "1.0.0", reliability_level: "HIGH" })],
+      });
+      expect(dims.source_reliability.per_source).toEqual([{ connector_id: "sim-app", connector_version: "1.0.0", reliability_level: "HIGH" }]);
+    });
+
+    it("CRITICAL: `lowest` is the honest ordinal worst-case across sources, not an average", () => {
+      const dims = assembleConfidenceDimensions({
+        investigation: investigation(),
+        evidence: [],
+        contextPackage: contextPackage(),
+        connectorDescriptors: [
+          connectorDescriptor({ connector_id: "a", reliability_level: "AUTHORITATIVE" }),
+          connectorDescriptor({ connector_id: "b", reliability_level: "LOW" }),
+          connectorDescriptor({ connector_id: "c", reliability_level: "HIGH" }),
+        ],
+      });
+      expect(dims.source_reliability.lowest).toBe("LOW"); // min, not "MEDIUM-ish" average
+    });
+
+    it("lowest is null when no connectors contributed", () => {
+      const dims = assembleConfidenceDimensions({ investigation: investigation(), evidence: [], contextPackage: contextPackage() });
+      expect(dims.source_reliability).toEqual({ lowest: null, per_source: [] });
+    });
+  });
+
+  describe("policy_certainty (E-04, ADR-008)", () => {
+    it("CRITICAL: NOT_YET_EVALUATED before the Policy Engine runs — never an implicit ALLOW", () => {
+      const dims = assembleConfidenceDimensions({ investigation: investigation(), evidence: [], contextPackage: contextPackage() });
+      expect(dims.policy_certainty).toEqual({ outcome: "NOT_YET_EVALUATED", hard_deny_reason_code: null });
+    });
+
+    it("CRITICAL: a DENY is carried categorically as DENY, never as 'low confidence', and keeps its hard_deny_reason_code", () => {
+      const dims = assembleConfidenceDimensions({
+        investigation: investigation(),
+        evidence: [],
+        contextPackage: contextPackage(),
+        policyDecision: policyDecision({ outcome: "DENY", hard_deny_reason_code: "KILL_SWITCH_ACTIVE" }),
+      });
+      expect(dims.policy_certainty).toEqual({ outcome: "DENY", hard_deny_reason_code: "KILL_SWITCH_ACTIVE" });
+    });
+
+    it("passes ALLOW / REQUIRE_APPROVAL through categorically with a null reason code", () => {
+      const allow = assembleConfidenceDimensions({
+        investigation: investigation(), evidence: [], contextPackage: contextPackage(),
+        policyDecision: policyDecision({ outcome: "ALLOW" }),
+      });
+      expect(allow.policy_certainty).toEqual({ outcome: "ALLOW", hard_deny_reason_code: null });
+    });
   });
 });

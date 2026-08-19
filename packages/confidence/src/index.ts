@@ -6,3 +6,4 @@
  * dimensions are the entire confidence surface at this stage.
  */
 export * from "./assemble-confidence-dimensions.js";
+export * from "./role-separated-review.js";
