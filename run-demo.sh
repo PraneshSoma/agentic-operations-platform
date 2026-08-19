@@ -66,6 +66,17 @@ say "Ensuring Prisma client is generated…"
 pnpm --filter @aop/evidence-ledger exec prisma generate >/dev/null
 
 # ── 5. Run the demo ──────────────────────────────────────────────────────
+# Load local secrets if present (git-ignored). `.env.local` wins over `.env`.
+# `set -a` exports everything the file assigns, so SLACK_* reach the server.
+# Runs from the repo root, which we're now inside.
+for envfile in .env.local .env; do
+  if [ -f "$envfile" ]; then
+    say "Loading environment from $envfile"
+    set -a; . "./$envfile"; set +a
+    break
+  fi
+done
+
 if [ "$MODE" = "cli" ]; then
   say "Launching the narrated CLI demo"
   pnpm demo

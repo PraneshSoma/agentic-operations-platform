@@ -72,6 +72,16 @@ Copy the public `https://…` URL it prints.
 
 ### 3. Start the server with the credentials
 
+Put your secrets in a git-ignored `.env.local` at the repo root (never
+committed — `.gitignore` already excludes `.env.*`):
+
+```bash
+cp .env.example .env.local        # then edit .env.local with your real values
+./run-demo.sh ui                  # sources .env.local automatically
+```
+
+`.env.local` holds:
+
 ```bash
 export SLACK_BOT_TOKEN=xoxb-…
 export SLACK_SIGNING_SECRET=…
@@ -79,8 +89,11 @@ export SLACK_CHANNEL=C0…          # channel to post UI-triggered incidents int
 # optional: bind Slack users to demo principals (approver must differ from the
 # proposer sam-oncall; unmapped users act as riley-lead by default)
 export SLACK_USER_MAP="U0YOURID:riley-lead"
-pnpm ui
 ```
+
+Or export them by hand and run `pnpm ui` — same effect. `./run-demo.sh ui`
+additionally opens an ngrok tunnel (if installed) and prints the two Slack
+Request URLs to paste back into the app.
 
 Now the loop is closed:
 
