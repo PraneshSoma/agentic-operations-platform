@@ -4,16 +4,32 @@ A ~10-minute live demo you can run in a terminal. It runs the **real
 platform code** in-process (the same code the 706-test suite covers) — no
 mocks, no slides required, deterministic every time.
 
-## Run it
+## Run it locally (from a fresh machine)
+
+Prerequisites: **Node 20+** and **pnpm** (via `corepack`, bundled with
+Node). No database, no Docker, nothing else.
 
 ```bash
-pnpm install
+git clone https://github.com/PraneshSoma/agentic-operations-platform.git
+cd agentic-operations-platform
+
+corepack enable            # activates the pinned pnpm version
+pnpm install               # also generates the Prisma client (postinstall)
 pnpm demo
 ```
 
-That's it. No database, no services to boot. The whole thing prints in a
-few seconds. (For the DB-backed persistence layer, see "Going deeper"
-below.)
+That's it — the whole thing prints in a few seconds, the same every run.
+
+If your environment skips lifecycle scripts during install (some locked-down
+setups do), run the Prisma step once by hand, then the demo:
+
+```bash
+pnpm --filter @aop/evidence-ledger exec prisma generate
+pnpm demo
+```
+
+(The demo needs **no** database. The DB is only for the persistence
+integration tests — see "Going deeper" below.)
 
 ## The pitch, in one line
 
