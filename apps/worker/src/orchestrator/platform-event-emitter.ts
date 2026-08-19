@@ -3,10 +3,16 @@ import type { PlatformEvent } from "@aop/contracts";
 /**
  * PlatformEventEmitter — spec §7 "2. emit an event". Interface +
  * pluggable-implementation pattern, same precedent as
- * ExecutionStateStore. The real implementation writes to the
- * `outbox_event` table (ADR-005, story A-03) inside the same transaction
- * as the state persist — wired up in E-02 (Outbox-pattern event
- * emission), not here.
+ * ExecutionStateStore.
+ *
+ * A standalone `emit()` is the IN-MEMORY test-double shape only. The real
+ * outbox pattern (ADR-005) cannot be a separate emit at all: E-02's
+ * `PrismaLedgerWriter` (packages/evidence-ledger) folds the outbox_event
+ * insert into the SAME `prisma.$transaction` as the state + evidence
+ * write, so the event is durably enqueued atomically with the change it
+ * describes — never a second, independent write that could succeed or
+ * fail on its own. The separate relay (E-02's OutboxRelay) publishes from
+ * the outbox asynchronously.
  */
 export interface PlatformEventEmitter {
   emit(event: PlatformEvent): Promise<void>;

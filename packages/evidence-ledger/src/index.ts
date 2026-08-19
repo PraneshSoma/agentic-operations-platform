@@ -14,6 +14,12 @@
 export * from "./retention/retention-policy.js";
 export * from "./repositories/evidence-repository.js";
 export * from "./repositories/prisma-evidence-repository.js";
+export * from "./outbox/outbox-event.js";
+export * from "./outbox/relay-lag.js";
+export * from "./outbox/outbox-relay.js";
+export * from "./outbox/deduping-event-consumer.js";
+export * from "./outbox/prisma-ledger-writer.js";
+export * from "./outbox/prisma-outbox-store.js";
 export { PrismaClient, Prisma } from "@prisma/client";
 export type {
   Tenant,

@@ -40,6 +40,13 @@ export default defineConfig({
         // (buildSupersedingRecord, computeRetention) stays fully covered
         // in the default gate.
         "packages/evidence-ledger/src/repositories/prisma-evidence-repository.ts",
+        // Prisma-bound outbox writer + store (story E-02): transaction
+        // atomicity and the relay poll query are DB-level properties,
+        // integration-tested against a real Postgres. The pure outbox
+        // logic (buildOutboxEvent, relay-lag, OutboxRelay, dedup) stays
+        // fully covered in the default gate.
+        "packages/evidence-ledger/src/outbox/prisma-ledger-writer.ts",
+        "packages/evidence-ledger/src/outbox/prisma-outbox-store.ts",
       ],
     },
   },
