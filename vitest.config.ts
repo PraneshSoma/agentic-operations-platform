@@ -36,6 +36,18 @@ export default defineConfig({
         // live, for an audience. Verified by running it (`pnpm demo`), not
         // by unit tests.
         "apps/demo/**",
+        // Control Tower interactive demo: the SPA server bootstrap
+        // (server.ts, index.ts) is transport-only, and the scenario
+        // engine (engine/**) drives the REAL @aop packages live for a
+        // presentation — the same rationale as apps/demo. The Slack Web
+        // API client is network I/O. All of the app's actual decision
+        // logic — store, controller, decision registry, SSE encoders,
+        // Slack signature verification, interaction parsing, principal
+        // mapping, scenario selection — is fully unit-tested and stays
+        // covered in the default gate.
+        "apps/control-tower/src/server.ts",
+        "apps/control-tower/src/engine/**",
+        "apps/control-tower/src/slack/slack-client.ts",
         "packages/contracts/src/llm-provider.ts",
         "packages/identity/src/identity-resolver.ts",
         // Prisma-backed repository: append-only-ness and cross-tenant

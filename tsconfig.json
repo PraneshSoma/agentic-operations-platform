@@ -12,6 +12,7 @@
     { "path": "packages/secrets" },
     { "path": "apps/api" },
     { "path": "apps/worker" },
-    { "path": "apps/demo" }
+    { "path": "apps/demo" },
+    { "path": "apps/control-tower" }
   ]
 }

@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AOP — Control Tower</title>
+    <style>
+      :root {
+        --bg: #0b0f17;
+        --panel: #131a26;
+        --panel-2: #0f1520;
+        --border: #223049;
+        --text: #e6edf6;
+        --muted: #8aa0bd;
+        --dim: #5f748f;
+        --accent: #4aa8ff;
+        --green: #37d67a;
+        --red: #ff5c6c;
+        --amber: #ffb648;
+        --violet: #9b8cff;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--bg); color: var(--text); }
+      header {
+        padding: 18px 24px; border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+        background: linear-gradient(180deg, #101623, #0b0f17);
+      }
+      header h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+      header .sub { color: var(--muted); font-size: 13px; }
+      .spacer { flex: 1; }
+      .pill {
+        font-size: 12px; padding: 4px 10px; border-radius: 999px;
+        border: 1px solid var(--border); color: var(--muted); background: var(--panel-2);
+      }
+      .pill.on { color: var(--green); border-color: #1e5b3a; }
+      .pill.off { color: var(--dim); }
+      main { padding: 20px 24px; max-width: 1120px; margin: 0 auto; }
+      .triggers { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
+      button {
+        font: inherit; cursor: pointer; border-radius: 9px; border: 1px solid var(--border);
+        background: var(--panel); color: var(--text); padding: 9px 13px; transition: .15s;
+      }
+      button:hover { border-color: var(--accent); }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #04121f; font-weight: 600; }
+      button.primary:hover { filter: brightness(1.08); }
+      button.g { background: var(--panel-2); }
+      button .b { display: block; font-size: 11px; color: var(--muted); font-weight: 400; margin-top: 2px; max-width: 220px; }
+      button.primary .b { color: #0a2135; }
+      .empty { color: var(--dim); text-align: center; padding: 60px 0; font-size: 14px; }
+      .incident {
+        border: 1px solid var(--border); border-radius: 13px; background: var(--panel);
+        margin-bottom: 16px; overflow: hidden;
+      }
+      .ihead { display: flex; align-items: center; gap: 12px; padding: 14px 16px; flex-wrap: wrap; }
+      .ihead .id { font-weight: 700; font-size: 14px; }
+      .ihead .subj { color: var(--muted); font-size: 13px; }
+      .scene-tag { font-size: 11px; color: var(--violet); border: 1px solid #34306b; border-radius: 6px; padding: 2px 7px; }
+      .status { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: .4px; }
+      .s-RUNNING { color: var(--accent); background: #0e2438; }
+      .s-WAITING_APPROVAL { color: var(--amber); background: #33260c; }
+      .s-RESOLVED { color: var(--green); background: #0f2c1c; }
+      .s-BLOCKED, .s-REJECTED, .s-FAILED { color: var(--red); background: #331419; }
+      .s-ESCALATED, .s-HALTED { color: var(--amber); background: #33260c; }
+      .lanes { display: flex; gap: 4px; padding: 0 16px 14px; flex-wrap: wrap; }
+      .lane {
+        font-size: 10.5px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+        color: var(--dim); background: var(--panel-2); white-space: nowrap;
+      }
+      .lane.done { color: var(--muted); border-color: #2a4066; }
+      .lane.cur { color: #04121f; background: var(--accent); border-color: var(--accent); font-weight: 700; }
+      .body { display: grid; grid-template-columns: 1fr; gap: 0; border-top: 1px solid var(--border); }
+      .timeline { padding: 12px 16px; max-height: 320px; overflow-y: auto; }
+      .t { display: flex; gap: 9px; padding: 4px 0; font-size: 12.5px; line-height: 1.45; }
+      .t .ic { width: 16px; flex: none; text-align: center; }
+      .t.step .tx { color: var(--muted); }
+      .t.ok .tx { color: var(--text); }
+      .t.blocked .tx { color: var(--red); }
+      .t.why .tx { color: var(--dim); font-style: italic; }
+      .t.approval .tx { color: var(--amber); }
+      .t.decision .tx { color: var(--violet); }
+      .t .ev { color: var(--dim); font-size: 10px; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; margin-left: 6px; }
+      .approval {
+        margin: 12px 16px 16px; border: 1px solid #4a3a12; background: #1c1708; border-radius: 11px; padding: 14px;
+      }
+      .approval h3 { margin: 0 0 8px; font-size: 13px; color: var(--amber); }
+      .approval .kv { font-size: 12.5px; color: var(--muted); margin: 3px 0; }
+      .approval .kv b { color: var(--text); font-weight: 600; }
+      .approval code { background: #0c0f16; border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; color: #cfe0f5; }
+      .approval .acts { display: flex; gap: 10px; margin-top: 12px; }
+      .approval .note { font-size: 11.5px; color: var(--dim); margin-top: 9px; }
+      .decided { font-size: 12.5px; padding: 2px 0; }
+      .decided.ap { color: var(--green); }
+      .decided.rj { color: var(--red); }
+      footer { color: var(--dim); font-size: 11.5px; text-align: center; padding: 24px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>Agentic Operations Platform · Control Tower</h1>
+        <div class="sub">Live governed automation — every step is real platform code, streamed as it happens.</div>
+      </div>
+      <div class="spacer"></div>
+      <span id="slack" class="pill off">Slack: …</span>
+      <span id="conn" class="pill off">● connecting</span>
+    </header>
+    <main>
+      <div class="triggers" id="triggers"></div>
+      <div id="board"><div class="empty">No incidents yet. Trigger one above — or report one in your Slack channel.</div></div>
+    </main>
+    <footer>Simulated action connectors by design · the guardrails, pipeline, and evidence are the real thing.</footer>
+
+    <script>
+      const LANES = ["RECEIVED","OPC_MATCHED","CONTEXT","INVESTIGATING","DIAGNOSED","PLANNED","WAITING_APPROVAL","EXECUTING","VERIFYING","RESOLVED"];
+      const ICON = { step: "·", ok: "✓", blocked: "🛑", why: "↳", approval: "🔒", decision: "⚖︎" };
+      const incidents = new Map();
+      let scenarios = [];
+
+      const el = (id) => document.getElementById(id);
+
+      async function post(url, body) {
+        try {
+          await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body || {}) });
+        } catch (e) { /* ignore for demo */ }
+      }
+
+      function renderTriggers() {
+        const wrap = el("triggers");
+        wrap.innerHTML = "";
+        scenarios.forEach((s) => {
+          const b = document.createElement("button");
+          b.className = s.scene === 1 ? "primary" : "g";
+          b.innerHTML = (s.scene === 1 ? "▶ Trigger incident" : "Scene " + s.scene + " · " + shortTitle(s.title)) +
+            '<span class="b">' + s.blurb + "</span>";
+          b.onclick = () => post("/api/trigger", { key: s.key });
+          wrap.appendChild(b);
+        });
+      }
+      const shortTitle = (t) => t.split("—")[0].trim();
+
+      function decisionRow(a) {
+        const ap = a.decision === "APPROVED";
+        const via = a.decidedVia === "slack" ? "in Slack" : "in the UI";
+        const d = document.createElement("div");
+        d.className = "decided " + (ap ? "ap" : "rj");
+        d.textContent = (ap ? "✓ Approved" : "✗ Rejected") + " by " + a.decidedBy + " " + via;
+        return d;
+      }
+
+      function approvalCard(inc) {
+        const a = inc.approval;
+        const box = document.createElement("div");
+        box.className = "approval";
+        if (a.decision) { box.appendChild(decisionRow(a)); return box; }
+        box.innerHTML =
+          "<h3>🔒 Approval required</h3>" +
+          '<div class="kv"><b>Action:</b> <code>' + a.action + "</code></div>" +
+          '<div class="kv"><b>Parameters:</b> <code>' + JSON.stringify(a.parameters) + "</code></div>" +
+          '<div class="kv"><b>Proposed by:</b> ' + a.proposer + "</div>" +
+          '<div class="kv"><b>Requires role:</b> <code>' + a.requiredRole + "</code></div>" +
+          '<div class="kv"><b>Why:</b> ' + a.reason + "</div>";
+        const acts = document.createElement("div");
+        acts.className = "acts";
+        const ap = document.createElement("button");
+        ap.className = "primary"; ap.textContent = "Approve (as riley-lead)";
+        ap.onclick = () => post("/api/incidents/" + inc.id + "/decision", { decision: "APPROVED", actorId: "riley-lead" });
+        const rj = document.createElement("button");
+        rj.textContent = "Reject";
+        rj.onclick = () => post("/api/incidents/" + inc.id + "/decision", { decision: "REJECTED", actorId: "riley-lead" });
+        acts.appendChild(ap); acts.appendChild(rj);
+        box.appendChild(acts);
+        const note = document.createElement("div");
+        note.className = "note";
+        note.textContent = "…or approve from the Slack thread. Whichever acts first wins — the other becomes a no-op.";
+        box.appendChild(note);
+        return box;
+      }
+
+      function laneIndex(inc) {
+        const done = ["RESOLVED","BLOCKED","REJECTED","FAILED","ESCALATED","HALTED"];
+        if (done.includes(inc.status)) return LANES.length;
+        return LANES.indexOf(inc.lane);
+      }
+
+      function render() {
+        const board = el("board");
+        const list = [...incidents.values()].sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+        if (!list.length) { board.innerHTML = '<div class="empty">No incidents yet. Trigger one above — or report one in your Slack channel.</div>'; return; }
+        board.innerHTML = "";
+        const curIdx = (inc) => laneIndex(inc);
+        list.forEach((inc) => {
+          const card = document.createElement("div");
+          card.className = "incident";
+          const head = document.createElement("div");
+          head.className = "ihead";
+          head.innerHTML =
+            '<span class="id">' + inc.id + "</span>" +
+            '<span class="subj">' + escapeHtml(inc.subject) + "</span>" +
+            '<span class="scene-tag">scene ' + inc.scene + "</span>" +
+            '<span class="spacer"></span>' +
+            '<span class="status s-' + inc.status + '">' + inc.status.replace(/_/g, " ") + "</span>";
+          card.appendChild(head);
+
+          const lanes = document.createElement("div");
+          lanes.className = "lanes";
+          const idx = curIdx(inc);
+          LANES.forEach((lane, i) => {
+            const d = document.createElement("span");
+            let cls = "lane";
+            if (i === LANES.indexOf(inc.lane) && idx < LANES.length) cls += " cur";
+            else if (i < idx) cls += " done";
+            d.className = cls; d.textContent = lane.replace(/_/g, " ");
+            lanes.appendChild(d);
+          });
+          card.appendChild(lanes);
+
+          const body = document.createElement("div");
+          body.className = "body";
+          if (inc.approval) body.appendChild(approvalCard(inc));
+          const tl = document.createElement("div");
+          tl.className = "timeline";
+          inc.timeline.forEach((t) => {
+            const row = document.createElement("div");
+            row.className = "t " + t.kind;
+            row.innerHTML = '<span class="ic">' + (ICON[t.kind] || "·") + '</span><span class="tx">' + escapeHtml(t.text) +
+              (t.evidenceType ? '<span class="ev">' + t.evidenceType + "</span>" : "") + "</span>";
+            tl.appendChild(row);
+          });
+          body.appendChild(tl);
+          card.appendChild(body);
+          board.appendChild(card);
+        });
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      }
+
+      function connect() {
+        const es = new EventSource("/api/stream");
+        es.addEventListener("snapshot", (e) => {
+          const msg = JSON.parse(e.data);
+          scenarios = msg.scenarios; renderTriggers();
+          incidents.clear();
+          msg.incidents.forEach((i) => incidents.set(i.id, i));
+          render();
+          el("conn").className = "pill on"; el("conn").textContent = "● live";
+        });
+        es.addEventListener("incident", (e) => {
+          const msg = JSON.parse(e.data);
+          incidents.set(msg.incident.id, msg.incident);
+          render();
+        });
+        es.onerror = () => { el("conn").className = "pill off"; el("conn").textContent = "● reconnecting"; };
+      }
+
+      async function initSlack() {
+        try {
+          const r = await fetch("/healthz"); const j = await r.json();
+          const p = el("slack");
+          p.className = "pill " + (j.slack ? "on" : "off");
+          p.textContent = "Slack: " + (j.slack ? "connected" : "UI-only");
+        } catch (e) {}
+      }
+
+      initSlack();
+      connect();
+    </script>
+  </body>
+</html>
