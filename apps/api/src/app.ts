@@ -2,9 +2,11 @@ import Fastify, { type FastifyInstance } from "fastify";
 import type { IdentityResolver } from "@aop/identity";
 import { LocalDevIdentityResolver } from "@aop/identity";
 import type { ActionConnector } from "@aop/action-executor";
+import type { ControlTowerRepository } from "@aop/evidence-ledger";
 import { registerWebhookRoutes } from "./routes/webhooks.js";
 import { registerApprovalRoutes } from "./routes/approvals.js";
 import { registerStatusCheckRoutes } from "./routes/status-check.js";
+import { registerControlTowerRoutes } from "./routes/control-tower.js";
 import { InMemoryRawPayloadStore, type RawPayloadStore } from "./triggers/raw-payload-store.js";
 import { InMemoryApprovalContextStore, type ApprovalContextStore } from "./approvals/approval-context-store.js";
 
@@ -14,6 +16,8 @@ export interface BuildAppOptions {
   identityResolver?: IdentityResolver;
   /** connector_ref -> ActionConnector, backing POST /internal/connectors/{connector_ref}/status-check (D-07). */
   connectorRegistry?: ReadonlyMap<string, ActionConnector>;
+  /** The Control Tower read layer (E-05). Read routes register only when provided — there's no in-memory default for a read-over-the-ledger surface. */
+  controlTowerRepository?: ControlTowerRepository;
   logger?: boolean;
 }
 
@@ -43,6 +47,9 @@ export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
     await registerWebhookRoutes(instance, { rawPayloadStore });
     await registerApprovalRoutes(instance, { approvalContextStore, identityResolver });
     await registerStatusCheckRoutes(instance, { connectorRegistry });
+    if (options.controlTowerRepository) {
+      await registerControlTowerRoutes(instance, { controlTowerRepository: options.controlTowerRepository });
+    }
   });
 
   return app;

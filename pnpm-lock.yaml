@@ -41,6 +41,9 @@ importers:
       '@aop/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@aop/evidence-ledger':
+        specifier: workspace:*
+        version: link:../../packages/evidence-ledger
       '@aop/identity':
         specifier: workspace:*
         version: link:../../packages/identity

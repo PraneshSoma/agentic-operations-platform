@@ -47,6 +47,12 @@ export default defineConfig({
         // fully covered in the default gate.
         "packages/evidence-ledger/src/outbox/prisma-ledger-writer.ts",
         "packages/evidence-ledger/src/outbox/prisma-outbox-store.ts",
+        // Prisma-bound Control Tower read repository (story E-05): the
+        // read-time joins and tenant scoping are DB-level, integration-
+        // tested against a real Postgres. The pure builders it delegates
+        // to (buildExecutionHistory, buildEngineeringContextPackageView)
+        // stay fully covered in the default gate.
+        "packages/evidence-ledger/src/read/prisma-control-tower-repository.ts",
       ],
     },
   },
