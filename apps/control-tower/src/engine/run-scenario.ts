@@ -128,7 +128,7 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
 
   // Park at the gate. A decision can arrive from the UI or from Slack.
   await presenter.requestApproval({
-    proposer: F.PROPOSER,
+    proposer: F.PROPOSER_DISPLAY,
     requiredRole: "senior_oncall",
     action: "restart_service",
     parameters: { version: "1.3.0" },
@@ -137,11 +137,11 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
   await presenter.why("this is the live gate — approve or reject from the UI or the Slack thread; whichever acts first wins");
 
   const outcome = await deps.decisions.await(incidentId);
-  store.recordDecision(incidentId, now().toISOString(), outcome.decision, outcome.actorId, outcome.via);
+  store.recordDecision(incidentId, now().toISOString(), outcome.decision, F.principalDisplayName(outcome.actorId), outcome.via);
 
   if (outcome.decision === "REJECTED") {
     await presenter.resolveApproval();
-    await presenter.blocked(`Rejected by ${outcome.actorId} (via ${outcome.via}) — nothing executes`);
+    await presenter.blocked(`Rejected by ${F.principalDisplayName(outcome.actorId)} (via ${outcome.via}) — nothing executes`);
     await presenter.why("a human said no; the platform does not act. The rejection is on the audit trail.");
     store.setStatus(incidentId, now().toISOString(), "REJECTED");
     return;
@@ -150,13 +150,13 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
   const gate = await runApprovalAcceptanceGate({ tenantId: F.TENANT, policyDecision: decision, proposedAction: F.proposedAction(), decision: "APPROVED", actorId: outcome.actorId, identityResolver: F.identityResolver(), now: N, authorizationId: "auth_1", signedPlanHash: "sha256:plan", issuedBy: "approval-gate" });
   await presenter.resolveApproval();
   if (gate.outcome !== "AUTHORIZED") {
-    await presenter.blocked(`Approval Acceptance Gate refused: ${gate.outcome} (actor ${outcome.actorId})`);
+    await presenter.blocked(`Approval Acceptance Gate refused: ${gate.outcome} (actor ${F.principalDisplayName(outcome.actorId)})`);
     await presenter.why("separation of duties — the proposer cannot approve their own action; only a different, senior approver can");
     store.setStatus(incidentId, now().toISOString(), "ESCALATED");
     return;
   }
-  await presenter.ok(`Approved by ${outcome.actorId} (≠ proposer ${F.PROPOSER}, via ${outcome.via}) — executes under ON_BEHALF_OF identity`, "APPROVAL");
-  await presenter.why("the action runs as the human approver, never a service account, and the proposer can't approve their own work");
+  await presenter.ok(`Approved by ${F.principalDisplayName(outcome.actorId)} (different from proposer ${F.PROPOSER_DISPLAY}, via ${outcome.via}) — ON_BEHALF_OF authorization issued`, "APPROVAL");
+  await presenter.why("the authorization carries the resolved human approver identity; this demo connector then applies the approved action only to a sandbox");
 
   assertMatchesFrozenPlan(plan, { step_id: "step_1", action_ref: "restart_service", parameters: { version: "1.3.0" } });
   await T("EXECUTING", "execution.started", "ACTION_RESULT", "executing restart");
@@ -264,7 +264,7 @@ async function sceneHalt(deps: RunScenarioDeps): Promise<void> {
 
   const req = { requiredHaltRoles: ["senior_oncall", "platform_owner"], identityResolver: F.identityResolver(), stateMachine: machine, stateStore } as const;
   const bad = await haltExecution({ ...req, tenantId: F.TENANT, executionId: execution.execution_id, haltRequest: { actor: { id: F.PROPOSER, role: "senior_oncall" }, scope: "single_execution", reason: "curious", created_at: N.toISOString() } });
-  await presenter.blocked(`${F.PROPOSER} tries to halt claiming 'senior_oncall' → ${bad.outcome} (real role is only 'operator')`);
+  await presenter.blocked(`${F.PROPOSER_DISPLAY} tries to halt claiming 'senior_oncall' → ${bad.outcome} (real role is only 'operator')`);
   await presenter.why("the request's self-claimed role is ignored; authorization uses the actor's real resolved identity");
 
   const good = await haltExecution({ ...req, tenantId: F.TENANT, executionId: execution.execution_id, haltRequest: { actor: { id: F.APPROVER, role: "senior_oncall" }, scope: "single_execution", reason: "customer-facing incident, pausing automation", created_at: N.toISOString() } });
@@ -273,7 +273,7 @@ async function sceneHalt(deps: RunScenarioDeps): Promise<void> {
     store.setStatus(incidentId, now().toISOString(), "FAILED");
     return;
   }
-  await presenter.ok(`${F.APPROVER} halts it → state ${good.execution.state}, with an auditable OUTCOME evidence record`, "OUTCOME");
+  await presenter.ok(`${F.APPROVER_DISPLAY} halts it → state ${good.execution.state}, with an auditable OUTCOME evidence record`, "OUTCOME");
   await presenter.why("an authorized operator can stop automation instantly, and the halt itself is on the audit trail");
   store.setStatus(incidentId, now().toISOString(), "HALTED");
 }

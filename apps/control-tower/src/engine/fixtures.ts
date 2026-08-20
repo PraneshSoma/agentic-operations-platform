@@ -21,6 +21,15 @@ export const TENANT = "acme-corp";
 export const NOW = new Date("2026-08-19T12:00:00.000Z");
 export const PROPOSER = "sam-oncall";
 export const APPROVER = "riley-lead";
+export const PROPOSER_DISPLAY = "Sam — On-Call Engineer";
+export const APPROVER_DISPLAY = "Riley — Senior On-Call Lead";
+
+/** Human-friendly label for demo surfaces; principal IDs remain stable for authorization and audit. */
+export function principalDisplayName(principalId: string): string {
+  if (principalId === PROPOSER) return PROPOSER_DISPLAY;
+  if (principalId === APPROVER) return APPROVER_DISPLAY;
+  return principalId;
+}
 
 export const secretResolver = new EnvVarSecretResolver({ SIM_APP_KEY: "sk-demo", SIM_ACTION_KEY: "sk-demo" });
 
@@ -175,7 +184,7 @@ export function proposedAction(): ProposedAction {
 
 export function identityResolver(): LocalDevIdentityResolver {
   return new LocalDevIdentityResolver([
-    { id: PROPOSER, tenant_id: TENANT, display_name: "Sam (proposer)", roles: ["operator"] },
-    { id: APPROVER, tenant_id: TENANT, display_name: "Riley (approver)", roles: ["senior_oncall"] },
+    { id: PROPOSER, tenant_id: TENANT, display_name: PROPOSER_DISPLAY, roles: ["operator"] },
+    { id: APPROVER, tenant_id: TENANT, display_name: APPROVER_DISPLAY, roles: ["senior_oncall"] },
   ]);
 }
