@@ -96,16 +96,28 @@ if [ -n "${SLACK_BOT_TOKEN:-}" ] && [ -n "${SLACK_SIGNING_SECRET:-}" ]; then
     ngrok http "$PORT" --log=stdout >/tmp/aop-ngrok.log 2>&1 &
     NGROK_PID=$!
     trap 'kill "$NGROK_PID" 2>/dev/null || true' EXIT
-    # Give ngrok a moment, then read the public URL from its local API.
-    sleep 3
-    PUBLIC_URL="$(curl -s http://127.0.0.1:4040/api/tunnels | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const t=JSON.parse(s).tunnels||[];const h=t.find(x=>x.public_url&&x.public_url.startsWith("https"))||t[0];process.stdout.write(h?h.public_url:"")}catch(e){}})' 2>/dev/null || true)"
+    # Poll ngrok's local API for the public URL — it can take several
+    # seconds to come up, so retry rather than guessing a single sleep.
+    PUBLIC_URL=""
+    for _ in $(seq 1 20); do
+      PUBLIC_URL="$(curl -s http://127.0.0.1:4040/api/tunnels 2>/dev/null \
+        | grep -o 'https://[a-zA-Z0-9.-]*\.ngrok[a-zA-Z0-9.-]*' | head -1 || true)"
+      [ -n "$PUBLIC_URL" ] && break
+      # If ngrok died (bad/missing authtoken), stop waiting and show why.
+      if ! kill -0 "$NGROK_PID" 2>/dev/null; then break; fi
+      sleep 1
+    done
     if [ -n "$PUBLIC_URL" ]; then
       printf '\n\033[1;32m▶ Public URL: %s\033[0m\n' "$PUBLIC_URL"
       printf '   Set these in your Slack app settings:\n'
       printf '     Interactivity Request URL : %s/slack/interactions\n' "$PUBLIC_URL"
       printf '     Events Request URL        : %s/slack/events\n\n' "$PUBLIC_URL"
+    elif ! kill -0 "$NGROK_PID" 2>/dev/null; then
+      say "ngrok exited — likely a missing/invalid authtoken. Last lines of /tmp/aop-ngrok.log:"
+      tail -5 /tmp/aop-ngrok.log 2>/dev/null || true
+      say "Set NGROK_AUTHTOKEN in .env.local (https://dashboard.ngrok.com/get-started/your-authtoken) and re-run."
     else
-      say "Couldn't read the ngrok URL automatically — check /tmp/aop-ngrok.log or the ngrok UI at http://127.0.0.1:4040"
+      say "ngrok is running but the URL couldn't be read — open http://127.0.0.1:4040 to copy it, then set the two Request URLs in your Slack app."
     fi
   else
     say "ngrok not found — Slack callbacks need a public URL. Install ngrok (https://ngrok.com) or run 'cloudflared tunnel --url http://localhost:$PORT' in another terminal, then set the two Request URLs in your Slack app."
