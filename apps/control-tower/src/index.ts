@@ -17,6 +17,14 @@ app
     app.log.info(process.env.SLACK_BOT_TOKEN ? "Slack: enabled" : "Slack: disabled (UI-only) — set SLACK_BOT_TOKEN + SLACK_SIGNING_SECRET to enable");
   })
   .catch((err: unknown) => {
+    if (isAddressInUse(err)) {
+      app.log.warn(`Control Tower is already running at http://localhost:${port} — reusing the existing process`);
+      process.exit(0);
+    }
     app.log.error(err);
     process.exit(1);
   });
+
+function isAddressInUse(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "EADDRINUSE";
+}
