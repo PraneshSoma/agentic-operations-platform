@@ -88,6 +88,18 @@ if [ "$MODE" != "ui" ]; then
 fi
 
 # Interactive UI mode.
+# Fail early before opening a second tunnel or attempting another listener.
+# If the existing process is already this Control Tower, treat re-running the
+# launcher as an idempotent success and point the operator at the live page.
+if command -v lsof >/dev/null 2>&1 && lsof -tiTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+  if curl -fsS "http://127.0.0.1:$PORT/healthz" 2>/dev/null | grep -q '"ok":true'; then
+    say "Control Tower is already running → http://localhost:$PORT"
+    say "Stop the existing process first if you want this launcher to own its UI and ngrok lifecycle."
+    exit 0
+  fi
+  die "Port $PORT is already in use by another process. Stop it or run with PORT=<another-port>."
+fi
+
 if [ -n "${SLACK_BOT_TOKEN:-}" ] && [ -n "${SLACK_SIGNING_SECRET:-}" ]; then
   say "Slack: enabled (channel ${SLACK_CHANNEL:-<unset — set SLACK_CHANNEL to post UI-triggered incidents>})"
   # If ngrok is available, open a public tunnel so Slack can reach us.
@@ -108,6 +120,8 @@ if [ -n "${SLACK_BOT_TOKEN:-}" ] && [ -n "${SLACK_SIGNING_SECRET:-}" ]; then
       sleep 1
     done
     if [ -n "$PUBLIC_URL" ]; then
+      # Surface callback readiness honestly in /api/listener and the UI.
+      export NGROK_URL="$PUBLIC_URL"
       printf '\n\033[1;32m▶ Public URL: %s\033[0m\n' "$PUBLIC_URL"
       printf '   Set these in your Slack app settings:\n'
       printf '     Interactivity Request URL : %s/slack/interactions\n' "$PUBLIC_URL"
