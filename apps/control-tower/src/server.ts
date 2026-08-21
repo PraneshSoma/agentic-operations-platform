@@ -101,6 +101,7 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
 
   app.get("/", async (_req, reply) => {
     reply.header("content-type", "text/html; charset=utf-8");
+    reply.header("cache-control", "no-store");
     return readFileSync(INDEX_HTML, "utf8");
   });
 
