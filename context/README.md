@@ -12,7 +12,6 @@ context/
     business-ask.md              →  Discovery input: business_ask
     stakeholders.md               →  Discovery input: stakeholder_docs
     vision-and-differentiation.md →  Discovery input: business_ask (the "why it matters" layer)
-    product-context.md            →  Presentation-ready positioning, demo narrative, and messaging
   engineering-context/
     system-inventory.md          →  Discovery input: system_inventory
                                      also: ADR input: architecture_context
@@ -61,8 +60,3 @@ it's flagged `OI-CTX-##` inline, the same numbering convention
 `loop/agents/discovery.md` and `requirements.md` already use for open items.
 Discovery should carry these into its own `open_questions` rather than
 silently assuming an answer.
-
-For executive briefings, demos, and source-grounded deck generation, use
-`product-intent/product-context.md`. It packages the approved product narrative,
-elevator pitch, lifecycle, proof scenario, governance principles, and visual
-guidance without replacing the implementation or engineering sources of truth.
