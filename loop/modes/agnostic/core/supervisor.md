@@ -38,7 +38,6 @@ to the Supervisor; each phase boundary and each Build stage has a HIL gate.
 7. Emit **telemetry** for every agent run
 8. Persist state atomically in `pipeline_state.json` after every gate
 9. Resume cleanly from any interruption
-10. Build and pass a focused Composite Context packet before every handoff
 
 ## Budget Enforcement — check BEFORE every handoff
 
@@ -72,20 +71,9 @@ generates config for, not a ceiling on Codegen itself.
 ## Guardrails
 
 - **Context isolation** (`guardrails.context_isolation`): hand each agent ONLY
-  its declared inputs plus the stage-scoped packet generated from
-  `context/composite-context.json` — planning hands codegen the
-  `planning_context`, codegen hands testgen the file list. Never pass the full
-  accumulated transcript. This is the primary defense against quadratic token
-  growth.
-- **Composite Context packet** (`composite_context`): before every handoff run
-  `node loop/tools/build-context-packet.mjs --stage <agent>` and add
-  `--story <id>` for a story-scoped Build stage. Pass the resulting packet path
-  as `context_packet`. Reuse the packet when its `load_policy.cache_key` is
-  unchanged. If `missing_sources` is non-empty and
-  `fail_on_missing_required_source` is true, classify it as structural and stop
-  before invoking the agent. Agents may expand beyond packet sources only after
-  returning a specific missing-context reason; never allow an unrecorded
-  whole-repository scan.
+  its declared inputs — planning hands codegen the `planning_context`, codegen
+  hands testgen the file list. Never pass the full accumulated transcript. This
+  is the primary defense against quadratic token growth.
 - **Error taxonomy**: classify every failure before reacting —
   *transient* (rate-limit/timeout/5xx) → backoff + retry;
   *deterministic* (quality/lint gate) → self-heal;
@@ -127,10 +115,7 @@ FUNCTION run_pipeline(req_id):
 
       budget_precheck(story, stage)              # may HALT here
       failure_context = null
-      context_packet = build_composite_context_packet(stage, story.id)
-      IF context_packet.missing_sources: HALT — structural missing context
-      inputs = isolated_inputs(stage, story) + { context_packet: context_packet.path }
-      output = handoff(stage, inputs, failure_context)
+      output = handoff(stage, isolated_inputs(stage, story), failure_context)
       emit_telemetry(stage, story, output)       # tokens, cost, model, latency
 
       IF stage in [codegen, testgen]:
@@ -171,16 +156,6 @@ FUNCTION run_pipeline(req_id):
 
   print_req_summary(req_id); release_run_lock()
 ```
-
-For initiative-level phases, generate the same packet without a story ID:
-
-```text
-discovery → requirements → adr → lld → story_gen → shadow → review → release
-```
-
-Each packet records source authority, purpose, byte size, SHA-256, the routing
-objective, and always-on invariants. The packet is a reproducible pointer set,
-not a copy of every source; agents read only the routed files they need.
 
 ## Self-Heal — Failure Context
 

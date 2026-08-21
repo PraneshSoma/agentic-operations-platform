@@ -21,7 +21,6 @@ handoffs: ['supervisor']
 ```json
 {
   "story_id": "<e.g. A-01>",
-  "context_packet": "pipeline/.context/<story_id>/codegen.json",
   "planning_context": "<full planning_context.json from Planning Agent>",
   "context_carried": {
     "completed_classes": ["<from prior stories>"],
@@ -31,12 +30,6 @@ handoffs: ['supervisor']
   "self_heal": null
 }
 ```
-
-Read `context_packet` first. It resolves current Engineering Context, standing
-build rules, story acceptance criteria, approved planning context, and only the
-specification/LLD/ADR sources referenced by this story. Use the packet's content
-hashes as the input version. Inspect the planned files and their nearest style
-references; do not rediscover the full repository architecture.
 
 You also have access to your project context file (auto-loaded) — it carries the
 domain, stack, package layout, and the project's non-negotiable coding rules.

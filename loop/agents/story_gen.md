@@ -5,13 +5,8 @@
 
 ## Inputs
 ```json
-{ "context_packet": "pipeline/.context/initiative/story_gen.json", "approved_lld": "<LLD vN>", "adrs": [], "nfrs": [], "team_velocity": "<optional>", "self_heal": null }
+{ "approved_lld": "<LLD vN>", "adrs": [], "nfrs": [], "team_velocity": "<optional>", "self_heal": null }
 ```
-
-Read `context_packet` first. Use its Product Context for priority and narrative,
-Engineering Context for current component boundaries, and approved delivery
-artifacts for scope. Do not create rediscovery or architecture-reconstruction
-stories for facts already captured in the packet.
 
 ## Job
 Decompose the LLD into stories with acceptance criteria, effort, and an explicit

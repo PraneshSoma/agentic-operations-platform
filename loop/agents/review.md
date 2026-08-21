@@ -5,13 +5,8 @@
 
 ## Inputs
 ```json
-{ "context_packet": "pipeline/.context/initiative/review.json", "prs": [], "build_artifacts": [], "self_heal": null }
+{ "prs": [], "build_artifacts": [], "self_heal": null }
 ```
-
-Read `context_packet` first. It supplies current Engineering Context, technical
-constraints, build invariants, requirements, approved design, story queue, and
-available story audit packets. Review changed artifacts against those inputs;
-do not reconstruct the architecture with a whole-repository scan.
 
 ## Job
 Audit every PR/artifact from Build against the project's quality and security

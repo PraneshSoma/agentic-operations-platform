@@ -5,15 +5,12 @@
 
 ## Inputs
 ```json
-{ "context_packet": "pipeline/.context/initiative/discovery.json", "business_ask": "<resolved sources>", "stakeholder_docs": [], "system_inventory": [], "self_heal": null }
+{ "business_ask": "<the raw ask>", "stakeholder_docs": [], "system_inventory": [], "self_heal": null }
 ```
 On a self-heal retry, `self_heal` carries `failed_checks` + `prior_output_summary`; fix only those.
 
-The Supervisor generates `context_packet` from `context/composite-context.json`.
-Read its sources in order and do not scan the repository beyond that packet
-unless a required fact is missing; record the missing-context reason first.
-
-**For this initiative, the packet resolves these inputs as files:**
+**For this initiative, these inputs are files, not prompt text — read them
+directly rather than waiting to be handed their contents:**
 - `business_ask` ← `context/product-intent/business-ask.md` +
   `context/product-intent/vision-and-differentiation.md` (the latter is the
   product owner's differentiation thesis; its scope decisions — naming stays
@@ -24,8 +21,6 @@ unless a required fact is missing; record the missing-context reason first.
 - `stakeholder_docs` ← `context/product-intent/stakeholders.md`
 - `system_inventory` ← `context/engineering-context/system-inventory.md` +
   `context/engineering-context/technical-constraints.md`
-- engineering orientation ←
-  `context/engineering-context/engineering-context.md`
 
 Every `OI-CTX-##` item in those files is an open question the business/eng
 stakeholders haven't answered yet — carry each one into your own

@@ -13,13 +13,8 @@ handoffs: ['supervisor']
 
 ## Inputs
 ```json
-{ "context_packet": "pipeline/.context/initiative/lld.json", "approved_adrs": [], "requirements": "<requirements.md>", "entity_inventory": [], "self_heal": null }
+{ "approved_adrs": [], "requirements": "<requirements.md>", "entity_inventory": [], "self_heal": null }
 ```
-
-Read `context_packet` first. It supplies the current Engineering Context,
-technical constraints, standing build rules, requirements, accepted ADRs, and
-normative specification. Treat its source hashes as the design-input version;
-avoid repository-wide discovery unless a concrete design fact is absent.
 
 ## Job
 Turn approved decisions into a concrete, versioned design: data model/schema,

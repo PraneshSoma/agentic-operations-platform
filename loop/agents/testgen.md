@@ -12,7 +12,6 @@
 ```json
 {
   "story_id": "<e.g. A-01>",
-  "context_packet": "pipeline/.context/<story_id>/testgen.json",
   "planning_context": "<planning_context.json>",
   "codegen_output": {
     "classes": [], "schema_files": [], "repositories": [],
@@ -21,11 +20,6 @@
   "self_heal": null
 }
 ```
-
-Read `context_packet` first. It resolves Engineering Context, invariants, story
-acceptance criteria, approved planning context, and story-specific design
-references. Inspect only changed production files and their nearest tests unless
-a missing test fixture requires expansion.
 
 You also have access to your project context file (test conventions, frameworks,
 fixtures). **On a self-heal retry**, `self_heal` carries `failed_checks` and your
