@@ -30,12 +30,14 @@ import { createSlackClient, type SlackClient } from "./slack/slack-client.js";
 import { verifySlackSignature } from "./slack/verify-signature.js";
 import { parseInteractionPayload } from "./slack/parse-interaction.js";
 import { parseUserMap, resolvePrincipal } from "./slack/principal-map.js";
+import { CustomerDomainClient } from "./customer-domain-client.js";
 
 export interface ServerConfig {
   slackBotToken?: string | undefined;
   slackSigningSecret?: string | undefined;
   slackChannel?: string | undefined;
   slackUserMap?: string | undefined;
+  slackCallbackUrl?: string | undefined;
   logger?: boolean | undefined;
 }
 
@@ -54,6 +56,7 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
   const slack: SlackClient = createSlackClient(config.slackBotToken);
   const userMap = parseUserMap(config.slackUserMap);
   const now = (): Date => new Date();
+  const customerDomain = new CustomerDomainClient();
   let demoPlaybackDelayMs = 1200;
 
   // The real engine runner: build a Presenter that fans out to the store
@@ -68,7 +71,7 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
       now,
       pacingMs: ctx.paced ? () => demoPlaybackDelayMs : undefined,
     });
-    void runScenario({ scene: ctx.scenario.scene, incidentId: ctx.incidentId, store, decisions, presenter, now });
+    void runScenario({ scene: ctx.scenario.scene, incidentId: ctx.incidentId, store, decisions, presenter, now, customerDomain });
   };
 
   const controller = new Controller({ store, decisions, run, now });
@@ -80,8 +83,10 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
   let lastSlackEventAt: string | undefined;
   const listenerHealth = (): Record<string, unknown> => ({
     enabled: slack.enabled,
+    inboundReady: slack.enabled && Boolean(config.slackCallbackUrl),
     channel: config.slackChannel ?? null,
-    mode: slack.enabled ? "Events API" : "Simulator",
+    mode: slack.enabled ? (config.slackCallbackUrl ? "Events API + interactive callbacks" : "Outbound messages only") : "Simulator",
+    approvalCallbacks: config.slackCallbackUrl ? "Configured" : "Public callback URL required",
     verification: config.slackSigningSecret ? "Signature valid" : "unverified",
     lastEventAt: lastSlackEventAt ?? null,
     heartbeatAt: now().toISOString(),
@@ -108,6 +113,8 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
   });
 
   app.get("/healthz", async () => ({ ok: true, slack: slack.enabled }));
+
+  app.get("/api/customer-domain", async () => customerDomain.health());
 
   // Listener health for the UI's "Slack listener" card.
   app.get("/api/listener", async () => listenerHealth());

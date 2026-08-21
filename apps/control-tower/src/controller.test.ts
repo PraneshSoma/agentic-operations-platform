@@ -18,13 +18,13 @@ describe("Controller", () => {
     const { store, run, controller } = make(() => "INC-1");
     const result = controller.trigger({});
     expect(result).toEqual({ ok: true, incidentId: "INC-1", scenario: expect.objectContaining({ scene: 1 }) });
-    expect(store.get("INC-1")?.subject).toBe("Checkout error rate spike");
+    expect(store.get("INC-1")?.subject).toBe("Customer profile DB latency cascading into wallet authorization failures");
     expect(run).toHaveBeenCalledWith(expect.objectContaining({ incidentId: "INC-1", scenario: expect.objectContaining({ scene: 1 }) }));
   });
 
   it("triggers a scenario by key", () => {
     const { run, controller } = make(() => "INC-2");
-    const r = controller.trigger({ key: "budget" });
+    const r = controller.trigger({ key: "pool-exhaustion" });
     expect(r.ok).toBe(true);
     expect(run).toHaveBeenCalledWith(expect.objectContaining({ scenario: expect.objectContaining({ scene: 6 }) }));
   });
@@ -38,12 +38,12 @@ describe("Controller", () => {
   it("stamps meta on create: P1 for the happy path, honest source, service, gate", () => {
     const { store, controller } = make(() => "INC-M");
     controller.trigger({ key: "happy-path", source: "SIMULATOR" });
-    expect(store.get("INC-M")).toMatchObject({ severity: "P1", service: "checkout-service", source: "SIMULATOR", mode: "Auto investigation", humanGate: "Required for R2+ actions" });
+    expect(store.get("INC-M")).toMatchObject({ severity: "P1", service: "customer-profile-service", source: "SIMULATOR", mode: "Auto investigation", humanGate: "Required for R2+ actions" });
   });
 
   it("defaults source to SIMULATOR and severity to P2 for guardrail scenes", () => {
     const { store, controller } = make(() => "INC-G");
-    controller.trigger({ key: "budget" });
+    controller.trigger({ key: "pool-exhaustion" });
     expect(store.get("INC-G")).toMatchObject({ severity: "P2", source: "SIMULATOR" });
   });
 
@@ -56,7 +56,7 @@ describe("Controller", () => {
   it("triggers a scenario by scene number", () => {
     const { controller } = make(() => "INC-3");
     const r = controller.trigger({ scene: 3 });
-    expect(r.ok && r.scenario.key).toBe("frozen-plan");
+    expect(r.ok && r.scenario.key).toBe("hot-key");
   });
 
   it("passes a custom subject through, trimming it, and Slack thread context", () => {
@@ -69,7 +69,7 @@ describe("Controller", () => {
   it("uses the per-scene default subject when a blank one is given", () => {
     const { store, controller } = make(() => "INC-5");
     controller.trigger({ scene: 2, subject: "   " });
-    expect(store.get("INC-5")?.subject).toBe("Customer profile and wallet ownership do not agree");
+    expect(store.get("INC-5")?.subject).toBe("Profile cache stampede after synchronized TTL expiry");
   });
 
   it("rejects an unknown scenario without creating an incident or running", () => {
@@ -99,8 +99,8 @@ describe("Controller", () => {
 
 describe("defaultSubject", () => {
   it("has a distinct line for every scene and a fallback", () => {
-    const subjects = [1, 2, 3, 4, 5, 6].map(defaultSubject);
-    expect(new Set(subjects).size).toBe(6);
+    const subjects = Array.from({ length: 11 }, (_, index) => defaultSubject(index + 1));
+    expect(new Set(subjects).size).toBe(11);
     expect(defaultSubject(99)).toBe("Incident");
   });
 });
@@ -116,8 +116,8 @@ describe("defaultService", () => {
   it("routes profile and wallet demo scenes to their customer-domain services", () => {
     expect(defaultService(2)).toBe("customer-profile-service");
     expect(defaultService(5)).toBe("customer-profile-service");
-    expect(defaultService(3)).toBe("wallet-service");
+    expect(defaultService(3)).toBe("customer-profile-service");
     expect(defaultService(4)).toBe("wallet-service");
-    expect(defaultService(6)).toBe("wallet-service");
+    expect(defaultService(6)).toBe("customer-profile-service");
   });
 });

@@ -249,12 +249,13 @@
       <span class="chip"><span class="dot"></span>DEMO</span>
       <span id="slackChip" class="chip off"><span class="dot"></span>Slack …</span>
       <span id="streamChip" class="chip off"><span class="dot"></span>Stream</span>
+      <span id="domainChip" class="chip off"><span class="dot"></span>Profile + Wallet …</span>
       <span class="chip"><span class="dot" style="background:var(--green)"></span>Auto analysis: <b>ON</b></span>
       <span class="chip">Human approval: <b>R2+</b></span>
       <span class="spacer"></span>
       <span id="waitChip" class="chip count" style="display:none"></span>
       <button class="ghost" onclick="openLab()">Demo Lab</button>
-      <button class="primary" onclick="simulate()">Simulate P1 Incident</button>
+      <button class="primary" onclick="simulate()">Trigger Profile P1</button>
     </header>
 
     <main>
@@ -290,11 +291,16 @@
         { label:"2×", delay:600 }, { label:"4×", delay:200 },
       ];
       const LAB = {
-        "ambiguous":   { group:"Customer identity", control:"Profile vs wallet match margin", expect:"Escalates ownership ambiguity" },
-        "frozen-plan": { group:"Wallet safety", control:"Frozen wallet-limit plan", expect:"Blocks a substituted limit" },
-        "preflight-drift": { group:"Wallet safety", control:"Wallet ledger preflight", expect:"Refuses to act on a changed balance" },
-        "emergency-halt":  { group:"Customer identity", control:"Role-gated profile-merge halt", expect:"Only an authorized lead can halt" },
-        "budget":      { group:"Wallet safety", control:"Wallet investigation budget", expect:"Escalates, never returns a partial risk answer" },
+        "cache-stampede": { group:"Cache + database", control:"Single-flight and TTL jitter", expect:"Contains synchronized cache misses" },
+        "hot-key": { group:"Cache + database", control:"Hot-key replication and load shedding", expect:"Protects unrelated customer traffic" },
+        "stale-kyc": { group:"Customer identity", control:"Versioned cache and fail-closed KYC", expect:"Blocks authorization on stale identity state" },
+        "cache-penetration": { group:"Cache + database", control:"Negative cache and admission filter", expect:"Stops invalid IDs before the database" },
+        "pool-exhaustion": { group:"Cache + database", control:"Bulkhead pool and backpressure", expect:"Preserves wallet-critical DB capacity" },
+        "retry-storm": { group:"Cascading failures", control:"Backoff, jitter, and circuit breaker", expect:"Stops retry amplification" },
+        "idempotency-expiry": { group:"Wallet integrity", control:"Ledger-bound idempotency", expect:"Refuses a duplicate debit" },
+        "replica-lag": { group:"Wallet integrity", control:"Read-your-writes and revision preflight", expect:"Prevents action on stale balance" },
+        "poisoned-cache": { group:"Release safety", control:"Versioned cache schema and canary", expect:"Quarantines incompatible entries" },
+        "reconciliation-drift": { group:"Customer identity", control:"Authoritative ownership reconciliation", expect:"Freezes funds for human review" },
       };
 
       const incidents = new Map();
@@ -378,7 +384,7 @@
           <h2>Listening for production incidents</h2>
           <p>AOP is monitoring your operations channel. New incidents are matched to an operating procedure and investigated automatically — production actions pause for human approval.</p>
           <div class="hb" id="hbLine">Last heartbeat: —</div>${speedControl()}
-          <div class="acts"><button class="primary" onclick="simulate()">Simulate P1 Incident</button><button class="ghost" onclick="openLab()">Open Demo Lab</button></div>
+          <div class="acts"><button class="primary" onclick="simulate()">Trigger Profile P1</button><button class="ghost" onclick="openLab()">Open Demo Lab</button></div>
         </div>`;
       }
       function header(inc) {
@@ -439,10 +445,12 @@
           } else {
             actions = `<div class="acts"><button class="danger" onclick="decide('${inc.id}','REJECTED')">Reject</button><button class="primary" onclick="decide('${inc.id}','APPROVED')">Approve action</button></div>`;
           }
+          const profileFix = a.action === "remediate_profile_db_cache";
           return `<div class="card focus"><div class="eyebrow orange">Human authorization required</div>
-            <h3>Restart ${esc(inc.service||"service")}</h3>
+            <h3>${profileFix?"Restore profile database + cache":"Restart "+esc(inc.service||"service")}</h3>
             <div class="facts">
-              <span class="fk">Target version</span><span class="fv mono">${esc(a.parameters?.version??"—")}</span>
+              ${profileFix?`<span class="fk">DB target</span><span class="fv mono">${esc(a.parameters?.dbLatencyMs)} ms</span>
+              <span class="fk">Cache policy</span><span class="fv mono">TTL ${esc(a.parameters?.cacheTtlSeconds)}s · pre-warm · single-flight</span>`:`<span class="fk">Target version</span><span class="fv mono">${esc(a.parameters?.version??"—")}</span>`}
               <span class="fk">Risk class</span><span class="fv">R2 · Production</span>
               <span class="fk">Proposed by</span><span class="fv">Sam — On-Call Engineer <span class="tag">(${esc(a.proposer)})</span></span>
               <span class="fk">Required role</span><span class="fv mono">${esc(a.requiredRole)}</span>
@@ -455,9 +463,12 @@
         if (a && a.decision) {
           const approved = a.decision === "APPROVED";
           const via = a.decidedVia === "slack" ? "in Slack" : "in the Control Tower";
+          const fixes = inc.timeline.filter(t=>t.kind==="ok" && t.text.startsWith("Fixed:"));
+          const comparison = [...inc.timeline].reverse().find(t=>t.text.startsWith("Before → after:"));
           return `<div class="card ${approved?"green":"red"}"><div class="eyebrow ${approved?"green":"red"}">${approved?"Authorization issued":"Action rejected"}</div>
             <h3>${approved?"Approved":"Rejected"} by ${esc(a.decidedBy)} ${via}</h3>
-            <p class="note">${approved?`Authorization issued on behalf of ${esc(a.decidedBy)} — Senior On-Call Lead. The sandbox connector executed the approved action under that authorization.`:"A human declined the action; nothing was executed. The rejection is on the audit trail."}</p>
+            ${fixes.length?`<div class="facts">${fixes.map(f=>`<span class="fk">Fixed</span><span class="fv">${esc(f.text.slice(7))}</span>`).join("")}${comparison?`<span class="fk">Verified impact</span><span class="fv">${esc(comparison.text.slice(16))}</span>`:""}</div>`:""}
+            <p class="note">${approved?`Authorization issued on behalf of ${esc(a.decidedBy)} — Senior On-Call Lead. ${inc.status==="RESOLVED"?"The profile-to-wallet recovery was verified with live probes.":"The approved remediation is executing now."}`:"A human declined the action; nothing was executed. The rejection is on the audit trail."}</p>
           </div>`;
         }
         // Terminal guardrail
@@ -544,14 +555,16 @@
           ${rows.map(([k,v])=>`<div class="erow"><span class="ek">${k}</span><span class="ev">${v}</span></div>`).join("")}
           </div>${listenerCard()}`;
       }
-      let listener = { enabled:false, channel:null, mode:"Simulator", verification:"unverified", lastEventAt:null, heartbeatAt:null };
+      let listener = { enabled:false, inboundReady:false, channel:null, mode:"Simulator", approvalCallbacks:"Public callback URL required", verification:"unverified", lastEventAt:null, heartbeatAt:null };
+      let domain = { ok:false };
       function ago(iso) { if(!iso) return "—"; const s=Math.floor((Date.now()-new Date(iso))/1000); return s<60?`${s}s ago`:`${Math.floor(s/60)}m ago`; }
       function listenerCard() {
         return `<h4 style="margin-top:18px">Listener</h4>
           <div class="env">
-            <div class="top"><div class="t" style="color:${listener.enabled?"var(--green)":"var(--muted)"}">Slack listener ${listener.enabled?"active":"offline"}</div></div>
+            <div class="top"><div class="t" style="color:${listener.inboundReady?"var(--green)":"var(--orange)"}">Slack ${listener.inboundReady?"interactive approvals active":listener.enabled?"outbound delivery active":"offline"}</div></div>
             <div class="erow"><span class="ek">Channel</span><span class="ev mono">${esc(listener.channel||"—")}</span></div>
             <div class="erow"><span class="ek">Mode</span><span class="ev">${esc(listener.mode)}</span></div>
+            <div class="erow"><span class="ek">Approval callbacks</span><span class="ev">${esc(listener.approvalCallbacks||"—")}</span></div>
             <div class="erow"><span class="ek">Last event</span><span class="ev">${ago(listener.lastEventAt)}</span></div>
             <div class="erow"><span class="ek">Heartbeat</span><span class="ev">${ago(listener.heartbeatAt)}</span></div>
             <div class="erow"><span class="ek">Verification</span><span class="ev">${listener.verification==="Signature valid"?b("Signature valid","green"):b(listener.verification,"gray")}</span></div>
@@ -568,7 +581,7 @@
       function openLab() {
         const groups = {};
         scenarios.filter(s=>s.scene>=2).forEach(s=>{ const m=LAB[s.key]||{}; (groups[m.group||"Scenarios"]=groups[m.group||"Scenarios"]||[]).push(s); });
-        let html = `<button class="close" onclick="closeAll()">✕</button><h2>Demo Lab</h2><p style="color:var(--muted);font-size:13px;margin:0 0 6px">Each scenario exercises one specific control and its expected refusal. These run as labelled <span class="mono">DEMO</span> incidents.</p>`;
+        let html = `<button class="close" onclick="closeAll()">✕</button><h2>Demo Lab · Top 10 revenue-risk incidents</h2><p style="color:var(--muted);font-size:13px;margin:0 0 6px">Realistic cache, database, identity, and wallet failure patterns. Each run exposes impact evidence, the safety control, and expected containment.</p>`;
         for (const [g, list] of Object.entries(groups)) {
           html += `<div class="lab-group">${g}</div>`;
           for (const s of list) { const m=LAB[s.key]||{}; html += `<div class="lab"><div class="lt">${esc(s.title.split("—")[0].trim())}</div><div class="lc">Control: ${esc(m.control||"")}</div><div class="le">Expected: ${esc(m.expect||"")}</div><button class="ghost" onclick="runLab('${s.key}')">Run scenario</button></div>`; }
@@ -584,8 +597,11 @@
         const wc = el("waitChip");
         if (waiting) { wc.style.display=""; wc.textContent = `${waiting} awaiting approval`; } else wc.style.display="none";
         const sc = el("slackChip");
-        sc.className = "chip " + (listener.enabled?"ok":"off");
-        sc.innerHTML = `<span class="dot"></span>Slack ${listener.enabled?(listener.channel?"#"+esc(listener.channel):"connected"):"UI-only"}`;
+        sc.className = "chip " + (listener.inboundReady?"ok":listener.enabled?"live":"off");
+        sc.innerHTML = `<span class="dot"></span>Slack ${listener.inboundReady?(listener.channel?"#"+esc(listener.channel):"interactive"):listener.enabled?"outbound only":"UI-only"}`;
+        const dc = el("domainChip");
+        dc.className = "chip " + (domain.ok?"ok":"off");
+        dc.innerHTML = `<span class="dot"></span>Profile + Wallet ${domain.ok?"live":"offline"}`;
       }
 
       function renderAll() { renderTopBar(); renderRail(); renderWorkspace(); renderInspector(); [...incidents.keys()].forEach(id=>seen.add(id)); }
@@ -613,6 +629,7 @@
       }
       async function pollListener() {
         try { listener = await (await fetch("/api/listener")).json(); } catch {}
+        try { domain = await (await fetch("/api/customer-domain")).json(); } catch { domain = {ok:false}; }
         renderTopBar(); renderInspector();
         const hb = el("hbLine"); if (hb) hb.textContent = "Last heartbeat: " + ago(listener.heartbeatAt);
       }

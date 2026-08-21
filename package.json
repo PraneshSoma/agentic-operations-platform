@@ -12,6 +12,7 @@
     "postinstall": "pnpm --filter @aop/evidence-ledger exec prisma generate",
     "demo": "pnpm --filter @aop/demo start",
     "ui": "pnpm --filter @aop/control-tower start",
+    "customer-domain": "pnpm --filter @aop/control-tower customer-domain",
     "test": "vitest run",
     "test:integration": "VITEST_INTEGRATION=1 vitest run",
     "lint": "eslint .",

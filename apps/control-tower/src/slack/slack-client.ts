@@ -67,6 +67,9 @@ export class RealSlackClient implements SlackClient {
       body: JSON.stringify(body),
     });
     const json = (await res.json()) as { ok: boolean; ts?: string; channel?: string; error?: string };
+    if (!json.ok) {
+      throw new Error(`Slack ${method} failed: ${json.error ?? `HTTP ${res.status}`}`);
+    }
     return { ok: json.ok, ts: json.ts, channel: json.channel, error: json.error };
   }
 

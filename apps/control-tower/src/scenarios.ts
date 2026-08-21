@@ -1,10 +1,6 @@
 /**
- * Scene catalogue for the interactive demo — the six things the audience
- * can trigger. Scene 1 is the governed happy path (the only one with a live
- * approval gate); scenes 2–6 are the five guardrails, each a deliberate
- * attempt to do the wrong thing that the platform refuses. Kept as plain
- * data so the UI, the trigger routes, and the engine all agree on the same
- * list without duplicating it.
+ * One live P1 plus ten high-impact customer profile / wallet lab incidents.
+ * Kept as plain data so the UI, trigger routes, and engine share one catalogue.
  */
 
 export interface Scenario {
@@ -22,45 +18,50 @@ export const SCENARIOS: readonly Scenario[] = [
   {
     scene: 1,
     key: "happy-path",
-    title: "An incident, governed end to end",
-    blurb: "Investigate → plan → approve → act → verify, fully audited",
+    title: "Profile DB latency cascade — governed end to end",
+    blurb: "Slow profile DB → wallet failures → approve → remediate → verify",
     hasApprovalGate: true,
   },
   {
     scene: 2,
-    key: "ambiguous",
-    title: "Profile / wallet mismatch — refuses to guess",
-    blurb: "A customer state mismatch ties profile and wallet procedures → escalates",
+    key: "cache-stampede",
+    title: "Cache stampede after synchronized TTL expiry",
+    blurb: "A cold cache fans thousands of requests into the profile database",
     hasApprovalGate: false,
   },
   {
     scene: 3,
-    key: "frozen-plan",
-    title: "Wallet limit mutation — approval binds the exact value",
-    blurb: "A $5,000 approved wallet limit is changed to $50,000 → blocked",
+    key: "hot-key",
+    title: "Hot customer key saturates a cache shard",
+    blurb: "One high-traffic profile monopolizes cache capacity and latency",
     hasApprovalGate: false,
   },
   {
     scene: 4,
-    key: "preflight-drift",
-    title: "Wallet ledger drift — balance changed since approval",
-    blurb: "The wallet revision changes after approval → execution is refused",
+    key: "stale-kyc",
+    title: "Stale KYC state authorizes the wrong wallet behavior",
+    blurb: "Cached eligibility disagrees with the profile system of record",
     hasApprovalGate: false,
   },
   {
     scene: 5,
-    key: "emergency-halt",
-    title: "Customer profile merge — emergency halt",
-    blurb: "An unauthorized halt is refused; an authorized profile-merge halt is audited",
+    key: "cache-penetration",
+    title: "Invalid customer IDs penetrate the cache",
+    blurb: "Nonexistent profile lookups bypass cache and amplify database load",
     hasApprovalGate: false,
   },
   {
     scene: 6,
-    key: "budget",
-    title: "Wallet investigation budget — no half-answers",
-    blurb: "A wallet-risk investigation exceeds its ceiling → escalates, never truncates",
+    key: "pool-exhaustion",
+    title: "Profile DB connection pool exhaustion",
+    blurb: "Slow queries consume every connection and block unrelated customers",
     hasApprovalGate: false,
   },
+  { scene: 7, key: "retry-storm", title: "Wallet retry storm overwhelms profile APIs", blurb: "Retries without jitter multiply a partial dependency failure", hasApprovalGate: false },
+  { scene: 8, key: "idempotency-expiry", title: "Wallet idempotency record expires too early", blurb: "A retried debit risks charging a customer twice", hasApprovalGate: false },
+  { scene: 9, key: "replica-lag", title: "Read replica lag serves an outdated balance", blurb: "Profile and wallet reads disagree immediately after a write", hasApprovalGate: false },
+  { scene: 10, key: "poisoned-cache", title: "Schema rollout poisons cached profiles", blurb: "Mixed application versions cannot deserialize the same cache entry", hasApprovalGate: false },
+  { scene: 11, key: "reconciliation-drift", title: "Profile-wallet ownership reconciliation drift", blurb: "A wallet points to a merged or superseded customer identity", hasApprovalGate: false },
 ] as const;
 
 export function scenarioByKey(key: string): Scenario | undefined {
@@ -87,7 +88,7 @@ export function scenarioKeyFromText(text: string): string {
     }
   }
   for (const s of SCENARIOS) {
-    if (lower.includes(s.key)) {
+    if (lower.includes(s.key) || lower.includes(s.key.replaceAll("-", " "))) {
       return s.key;
     }
   }

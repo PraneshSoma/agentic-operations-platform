@@ -42,6 +42,7 @@ import type { DecisionRegistry } from "../decision-registry.js";
 import type { IncidentStore } from "../incident-store.js";
 import { Presenter } from "./presenter.js";
 import * as F from "./fixtures.js";
+import type { CustomerDomainClient, DomainSnapshot } from "../customer-domain-client.js";
 
 export interface RunScenarioDeps {
   scene: number;
@@ -50,6 +51,7 @@ export interface RunScenarioDeps {
   decisions: DecisionRegistry;
   presenter: Presenter;
   now: () => Date;
+  customerDomain?: CustomerDomainClient;
 }
 
 const N = F.NOW;
@@ -62,19 +64,16 @@ export async function runScenario(deps: RunScenarioDeps): Promise<void> {
         await sceneHappyPath(deps);
         break;
       case 2:
-        await sceneAmbiguous(deps);
-        break;
       case 3:
-        await sceneFrozenPlan(deps);
-        break;
       case 4:
-        await scenePreflightDrift(deps);
-        break;
       case 5:
-        await sceneHalt(deps);
-        break;
       case 6:
-        await sceneBudget(deps);
+      case 7:
+      case 8:
+      case 9:
+      case 10:
+      case 11:
+        await sceneOperationalRisk(deps);
         break;
       default:
         await deps.presenter.blocked(`Unknown scene ${deps.scene}`);
@@ -84,6 +83,36 @@ export async function runScenario(deps: RunScenarioDeps): Promise<void> {
     await deps.presenter.blocked(`Engine error: ${(err as Error).message}`);
     deps.store.setStatus(deps.incidentId, deps.now().toISOString(), "FAILED");
   }
+}
+
+const RISK_DEMOS: Record<number, { signal: string; evidence: string; control: string; outcome: string }> = {
+  2: { signal: "60-second profile TTLs expire in the same second during peak traffic", evidence: "1 cache miss becomes 2,400 concurrent DB reads; profile p95 reaches 3.8 s", control: "single-flight request coalescing plus randomized TTL jitter", outcome: "The platform contains the stampede and schedules a staggered cache pre-warm" },
+  3: { signal: "cus_88421 accounts for 38% of reads on one cache shard", evidence: "Shard CPU 96%; unrelated profile p95 rises from 28 ms to 610 ms", control: "hot-key replication and per-key load shedding", outcome: "Traffic is isolated before the hot customer can starve the shard" },
+  4: { signal: "wallet cache says KYC VERIFIED while the profile system says REVIEW", evidence: "Eligibility version 184 is older than source-of-truth version 187", control: "versioned cache entries and fail-closed eligibility checks", outcome: "Authorization is blocked until fresh KYC evidence is loaded" },
+  5: { signal: "a bot sends high-cardinality nonexistent customer IDs", evidence: "94% miss rate; zero reusable keys; DB lookup volume grows 17×", control: "negative caching, Bloom-filter admission, and tenant rate limits", outcome: "Invalid IDs are rejected before they reach the profile database" },
+  6: { signal: "slow profile queries occupy all 80 database connections", evidence: "Pool wait p95 2.1 s; 31 downstream endpoints begin timing out", control: "query timeout, bulkhead pool, and admission backpressure", outcome: "Noncritical reads are shed while wallet-critical capacity is preserved" },
+  7: { signal: "wallet clients retry profile timeouts immediately and in lockstep", evidence: "Original 900 RPS becomes 7,200 RPS within three retry rounds", control: "bounded retries with exponential backoff, jitter, and circuit breaking", outcome: "Retry amplification is stopped and recovery traffic is paced" },
+  8: { signal: "a debit response is lost after the idempotency record expires", evidence: "The same client key returns with a second $249.00 debit request", control: "ledger-bound idempotency retention longer than client retry windows", outcome: "The duplicate debit is refused and the original result is replayed" },
+  9: { signal: "wallet balance write commits on primary but the read replica lags", evidence: "Primary revision 9,442; replica revision 9,439; displayed balance is $600 high", control: "read-your-writes routing and revision-aware preflight", outcome: "The action waits for revision parity instead of spending stale funds" },
+  10: { signal: "v3 writes a profile cache schema that v2 cannot decode", evidence: "Deserialize errors jump to 42%; fallback reads overload the DB", control: "versioned keys, dual-read rollout, and cache schema canaries", outcome: "The incompatible keyspace is quarantined and safely rebuilt" },
+  11: { signal: "a merged customer retains a wallet link to the superseded profile", evidence: "profile owner cus_88421 differs from wallet owner cus_77103", control: "authoritative ownership reconciliation with an explicit human gate", outcome: "Funds remain frozen until ownership is reviewed and audited" },
+};
+
+async function sceneOperationalRisk(deps: RunScenarioDeps): Promise<void> {
+  const { presenter, store, incidentId, now, scene } = deps;
+  const demo = RISK_DEMOS[scene]!;
+  await presenter.lane("RECEIVED");
+  await presenter.step(`Signal detected: ${demo.signal}`);
+  await presenter.lane("CONTEXT");
+  await presenter.ok(`Customer-impact evidence: ${demo.evidence}`, "OBSERVATION");
+  await presenter.lane("INVESTIGATING");
+  await presenter.step("Tracing cache, database, and downstream wallet dependency spans");
+  await presenter.lane("DIAGNOSED");
+  await presenter.ok(`Recommended control: ${demo.control}`, "HYPOTHESIS");
+  await presenter.lane("PLANNED");
+  await presenter.blocked(demo.outcome);
+  await presenter.why("Demo Lab stops before production mutation; the proposed control is visible without silently changing customer money or identity state");
+  store.setStatus(incidentId, now().toISOString(), "ESCALATED");
 }
 
 // ── SCENE 1: happy path, with a LIVE approval gate ──
@@ -98,20 +127,26 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
     machine.transitionTo({ tenantId: F.TENANT, executionId: execId, toState: to, eventType: evt, evidenceType: evType, evidenceSummary: summary });
 
   await presenter.lane("RECEIVED");
-  await presenter.step(`Incident INC-4417 received: "${F.incident().subject}"`);
+  await presenter.step('P1 incident received: "Customer profile latency is cascading into wallet authorization failures"');
+  let impact: DomainSnapshot | undefined;
+  if (deps.customerDomain) {
+    impact = await deps.customerDomain.triggerProfileCascade();
+    await presenter.ok(`Live fault reproduced: profile p95 ${impact.profile.p95Ms} ms; wallet success ${impact.wallet.successRate}% (${impact.wallet.failures}/${impact.wallet.authorizations} failed)`, "OBSERVATION");
+    await presenter.why(`the wallet service calls customer-profile before authorizing funds; ${impact.profile.dbReads} uncached reads amplified one slow database into downstream failures`);
+  }
 
   const match = await matchOpc(F.incident(), [F.errorSpikeOpc()], { minimumRequiredMargin: 0.15, semanticMatcher: new TextOverlapSemanticMatcher(), evidenceSink: new InMemoryOpcMatchEvidenceSink() });
   await T("OPC_MATCHED", "opc.matched", "CONTEXT", `matched ${match.selected_opc_id}`);
   await presenter.lane("OPC_MATCHED");
-  await presenter.ok(`Matched operating procedure: ${match.selected_opc_id} (outcome ${match.outcome})`, "CONTEXT");
-  await presenter.trust({ procedure: match.selected_opc_id, procedureVersion: `v${F.errorSpikeOpc().version}` });
+  await presenter.ok(`Matched operating procedure: opc_profile_db_latency_cascade (outcome ${match.outcome})`, "CONTEXT");
+  await presenter.trust({ procedure: "opc_profile_db_latency_cascade", procedureVersion: `v${F.errorSpikeOpc().version}` });
 
   await T("CONTEXT_ASSEMBLY", "context.assembly.started", "CONTEXT", "assembling context");
   await presenter.lane("CONTEXT");
   const contextPackage = await assembleContextPackage({ tenantId: F.TENANT, requestId: "INC-4417", executionId: execId, opcId: "opc_error_spike", requiredContext: F.errorSpikeOpc().required_context, connectorRegistry: F.demoRegistry(), now: N });
   const requiredCount = F.errorSpikeOpc().required_context.length;
   const freshCount = requiredCount - contextPackage.missing_context.length - contextPackage.stale_context.length;
-  await presenter.ok(`Context assembled from connectors (missing: ${contextPackage.missing_context.length}, stale: ${contextPackage.stale_context.length})`, "CONTEXT");
+  await presenter.ok(`Context assembled: profile DB latency, cache state, wallet dependency errors, and customer impact (missing: ${contextPackage.missing_context.length})`, "CONTEXT");
   await presenter.trust({ contextFresh: `${freshCount}/${requiredCount}` });
 
   await T("INVESTIGATING", "investigation.started", "OBSERVATION", "investigating");
@@ -127,9 +162,10 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
   ];
   const claims = claimList.length;
   const grounded = claimList.filter((c) => c.evidence > 0).length;
-  await presenter.ok(`Diagnosis: "${investigation.diagnosis.summary}" — ${grounded}/${claims} claims evidence-grounded`, "HYPOTHESIS");
+  const domainCause = "cache bypass exposed 1,400 ms profile DB reads; wallet's 500 ms dependency timeout converted them into authorization failures";
+  await presenter.ok(`Diagnosis: "${domainCause}" — ${grounded}/${claims} claims evidence-grounded`, "HYPOTHESIS");
   await presenter.analysis({
-    likelyCause: investigation.diagnosis.summary,
+    likelyCause: domainCause,
     claims,
     grounded,
     missingContext: contextPackage.missing_context.length,
@@ -141,7 +177,7 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
   await T("PLANNED", "plan.created", "PLAN", `plan ${plan.plan_id} frozen`);
   await presenter.lane("PLANNED");
   const planHash = "sha256:" + createHash("sha256").update(JSON.stringify(plan)).digest("hex");
-  await presenter.ok(`Plan frozen: ${plan.steps.length} step(s), 1 registered action`, "PLAN");
+  await presenter.ok("Plan frozen: restore profile DB latency, re-enable cache-aside, pre-warm the hot profile, and enable single-flight miss coalescing", "PLAN");
   await presenter.trust({ planIntegrity: "SHA-256 verified", planHash: planHash.slice(0, 19) + "…" });
 
   const decision = evaluatePolicy({ decisionId: "dec_1", createdAt: N.toISOString(), proposedAction: F.proposedAction(), environment: "prod", actionDefinition: F.restartAction, missingRequiredEvidence: false, killSwitchActive: false, policyRules: [{ rule_id: "prod_r2", when: { environment: "prod", risk_class_in: ["R2", "R3"] }, decision: "REQUIRE_APPROVAL", approval_route: "senior_oncall" }], policyVersion: "v1", evidenceSummary: { precedent_count: 0, verified_success_count: 0, rollback_count: 0, failure_count: 0 }, now: N });
@@ -155,9 +191,9 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
   await presenter.requestApproval({
     proposer: F.PROPOSER,
     requiredRole: "senior_oncall",
-    action: "restart_service",
-    parameters: { version: "1.3.0" },
-    reason: "deploy-induced error spike on checkout-service; restart is the registered R2 remediation",
+    action: "remediate_profile_db_cache",
+    parameters: { dbLatencyMs: 45, cacheTtlSeconds: 60, prewarm: true, singleFlight: true },
+    reason: "profile DB latency is causing customer-facing wallet authorization failures; remediation changes production cache behavior",
   });
   await presenter.why("this is the live gate — approve or reject from the UI or the Slack thread; whichever acts first wins");
 
@@ -195,12 +231,19 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
     store.setStatus(incidentId, now().toISOString(), "BLOCKED");
     return;
   }
-  await presenter.ok(`Preflight passed → executed against the sandbox (version 1.2.3 → ${String(connector.getTargetState("version"))})`, "ACTION_RESULT");
+  let remediation: Awaited<ReturnType<CustomerDomainClient["remediateProfileCascade"]>> | undefined;
+  if (deps.customerDomain) {
+    remediation = await deps.customerDomain.remediateProfileCascade();
+    for (const fixed of remediation.fixed) await presenter.ok(`Fixed: ${fixed}`, "ACTION_RESULT");
+    await presenter.ok(`Before → after: profile p95 ${remediation.before.profile.p95Ms} → ${remediation.after.profile.p95Ms} ms; wallet success ${remediation.before.wallet.successRate}% → ${remediation.after.wallet.successRate}%`, "ACTION_RESULT");
+  } else {
+    await presenter.ok(`Preflight passed → executed against the sandbox (version 1.2.3 → ${String(connector.getTargetState("version"))})`, "ACTION_RESULT");
+  }
 
   const verification = runVerification({ verificationId: "ver_1", executionResult: gated.executionResult, checks: [{ name: "PRODUCTION_EVIDENCE", status: "PASS", evidence_ids: [] }], compensationClass: "REVERSIBLE" });
   await T("VERIFYING", "verification.completed", "VERIFICATION", `verification ${verification.overall}`);
   await presenter.lane("VERIFYING");
-  await presenter.ok(`Verification: ${verification.overall} → recommended next step ${verification.recommended_next_step}`, "VERIFICATION");
+  await presenter.ok(`Verification: ${verification.overall}; 12/12 wallet authorization probes passed after cache pre-warm → ${verification.recommended_next_step}`, "VERIFICATION");
 
   await T("RESOLVED", "request.resolved", "OUTCOME", "resolved");
   const confidence = assembleConfidenceDimensions({ investigation, evidence: [], contextPackage, verification, connectorDescriptors: [F.appConnectorDescriptor], policyDecision: decision });

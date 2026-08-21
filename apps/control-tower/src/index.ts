@@ -5,6 +5,7 @@ const app = buildServer({
   slackSigningSecret: process.env.SLACK_SIGNING_SECRET,
   slackChannel: process.env.SLACK_CHANNEL,
   slackUserMap: process.env.SLACK_USER_MAP,
+  slackCallbackUrl: process.env.SLACK_CALLBACK_URL ?? process.env.NGROK_URL,
   logger: true,
 });
 

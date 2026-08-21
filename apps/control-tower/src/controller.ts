@@ -125,17 +125,27 @@ export function defaultSeverity(scene: number): IncidentSeverity {
 export function defaultSubject(scene: number): string {
   switch (scene) {
     case 1:
-      return "Checkout error rate spike";
+      return "Customer profile DB latency cascading into wallet authorization failures";
     case 2:
-      return "Customer profile and wallet ownership do not agree";
+      return "Profile cache stampede after synchronized TTL expiry";
     case 3:
-      return "Approved wallet limit changed before execution";
+      return "Hot customer profile key saturating cache capacity";
     case 4:
-      return "Wallet ledger revision changed after approval";
+      return "Stale cached KYC state affecting wallet eligibility";
     case 5:
-      return "Emergency halt of an in-flight customer profile merge";
+      return "Invalid customer IDs penetrating the profile cache";
     case 6:
-      return "Wallet-risk investigation exceeded its token budget";
+      return "Profile database connection pool exhausted";
+    case 7:
+      return "Wallet retry storm overwhelming customer-profile APIs";
+    case 8:
+      return "Wallet idempotency record expired before client retry";
+    case 9:
+      return "Wallet read replica serving an outdated balance";
+    case 10:
+      return "Mixed-version rollout poisoned cached customer profiles";
+    case 11:
+      return "Profile-wallet ownership reconciliation drift";
     default:
       return "Incident";
   }
@@ -143,14 +153,14 @@ export function defaultSubject(scene: number): string {
 
 export function defaultService(scene: number): string {
   switch (scene) {
-    case 2:
-    case 5:
-      return "customer-profile-service";
-    case 3:
     case 4:
-    case 6:
+    case 8:
+    case 9:
       return "wallet-service";
+    case 7:
+    case 11:
+      return "customer-domain";
     default:
-      return "checkout-service";
+      return "customer-profile-service";
   }
 }

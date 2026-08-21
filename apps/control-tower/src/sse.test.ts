@@ -12,7 +12,7 @@ describe("sse", () => {
     const msg = snapshotMessage([incident]);
     expect(msg.type).toBe("snapshot");
     expect(msg.incidents).toEqual([incident]);
-    expect(msg.scenarios.length).toBe(6);
+    expect(msg.scenarios.length).toBe(11);
   });
 
   it("builds an incident delta", () => {
