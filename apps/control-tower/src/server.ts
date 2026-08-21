@@ -31,6 +31,7 @@ import { verifySlackSignature } from "./slack/verify-signature.js";
 import { parseInteractionPayload } from "./slack/parse-interaction.js";
 import { parseUserMap, resolvePrincipal } from "./slack/principal-map.js";
 import { CustomerDomainClient } from "./customer-domain-client.js";
+import { OnboardingStore, validateOnboarding, type OnboardedAppInput } from "./onboarding-store.js";
 
 export interface ServerConfig {
   slackBotToken?: string | undefined;
@@ -38,6 +39,7 @@ export interface ServerConfig {
   slackChannel?: string | undefined;
   slackUserMap?: string | undefined;
   slackCallbackUrl?: string | undefined;
+  onboardingPath?: string | undefined;
   logger?: boolean | undefined;
 }
 
@@ -57,6 +59,7 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
   const userMap = parseUserMap(config.slackUserMap);
   const now = (): Date => new Date();
   const customerDomain = new CustomerDomainClient();
+  const onboarding = new OnboardingStore(config.onboardingPath ?? join(process.cwd(), ".local", "onboarding.json"), now);
   let demoPlaybackDelayMs = 1200;
 
   // The real engine runner: build a Presenter that fans out to the store
@@ -115,6 +118,26 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
   app.get("/healthz", async () => ({ ok: true, slack: slack.enabled }));
 
   app.get("/api/customer-domain", async () => customerDomain.health());
+
+  app.get("/api/onboarding/apps", async () => ({ apps: onboarding.list() }));
+  app.get("/api/onboarding/apps/:id", async (req, reply) => {
+    const appConfig = onboarding.get((req.params as { id: string }).id);
+    return appConfig ?? reply.code(404).send({ error: "application_not_found" });
+  });
+  app.post("/api/onboarding/apps", async (req, reply) => {
+    const input = (req.body ?? {}) as OnboardedAppInput;
+    const validation = validateOnboarding(input);
+    if (!validation.ok) return reply.code(400).send({ error: "invalid_onboarding_config", issues: validation.issues });
+    return reply.code(201).send({ app: onboarding.upsert(input) });
+  });
+  app.put("/api/onboarding/apps/:id", async (req, reply) => {
+    const id = (req.params as { id: string }).id;
+    if (!onboarding.get(id)) return reply.code(404).send({ error: "application_not_found" });
+    const input = { ...((req.body ?? {}) as OnboardedAppInput), id };
+    const validation = validateOnboarding(input);
+    if (!validation.ok) return reply.code(400).send({ error: "invalid_onboarding_config", issues: validation.issues });
+    return { app: onboarding.upsert(input) };
+  });
 
   // Listener health for the UI's "Slack listener" card.
   app.get("/api/listener", async () => listenerHealth());

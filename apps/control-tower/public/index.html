@@ -228,6 +228,36 @@
       .lab .le { font-size: 11.5px; color: var(--blue); }
       .lab button { margin-top: 10px; width: 100%; }
 
+      /* application onboarding */
+      .drawer.wide { width: min(760px, 96vw); }
+      .wizard-steps { display: grid; grid-template-columns: repeat(5,1fr); gap: 6px; margin: 18px 0; }
+      .wizard-step { padding: 8px 6px; border: 1px solid var(--line); border-radius: 7px; font: 10px var(--mono); color: var(--muted); text-align: center; }
+      .wizard-step.active { color: var(--orange); border-color: var(--orange); background: var(--orange-soft); }
+      .wizard-step.done { color: var(--green); border-color: rgba(79,128,99,.35); }
+      .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+      .field.full { grid-column: 1/-1; }
+      .field label { font-size: 10px; letter-spacing: .65px; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+      .field input,.field select,.field textarea { width: 100%; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--white); color: var(--ink); padding: 9px 10px; font: 12.5px inherit; }
+      .field textarea { min-height: 72px; resize: vertical; line-height: 1.45; }
+      .field input:focus,.field select:focus,.field textarea:focus { outline: 2px solid rgba(180,95,61,.18); border-color: var(--orange); }
+      .repeat-card { border: 1px solid var(--line); background: var(--white); border-radius: 10px; padding: 13px; margin-bottom: 10px; box-shadow: var(--shadow); }
+      .repeat-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+      .repeat-head strong { font-size: 13px; }
+      .repeat-head .spacer + button { padding: 4px 8px; font-size: 11px; }
+      .wizard-actions { display: flex; justify-content: space-between; gap: 10px; position: sticky; bottom: -20px; padding: 14px 0 20px; background: linear-gradient(transparent,var(--off) 22%); }
+      .wizard-error { padding: 10px 12px; margin: 10px 0; color: var(--red); background: var(--red-soft); border: 1px solid rgba(182,75,67,.25); border-radius: 7px; font-size: 12px; line-height: 1.5; }
+      .review-row { display: grid; grid-template-columns: 130px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+      .review-row span:first-child { color: var(--muted); }
+      .registry { margin-top: 22px; text-align: left; }
+      .registry-head { display:flex;align-items:center;gap:10px;margin-bottom:10px; }
+      .registry-head h3 { margin:0;font-size:13px; }
+      .app-mini { display:grid;grid-template-columns:1fr auto;gap:6px 12px;padding:11px 12px;border:1px solid var(--line);background:var(--white);border-radius:8px;margin-bottom:7px;box-shadow:var(--shadow); }
+      .app-mini .name { font-size:12.5px;font-weight:700; }
+      .app-mini .meta { font:10px var(--mono);color:var(--muted);grid-column:1; }
+      .app-mini .counts { font:10px var(--mono);color:var(--blue);grid-column:2;grid-row:1/3;align-self:center; }
+      @media(max-width:600px){.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.wizard-steps{grid-template-columns:1fr 1fr}}
+
       /* empty state */
       .empty { max-width: 560px; margin: 8vh auto 0; text-align: center; }
       .empty .rad { width: 70px; height: 70px; border-radius: 14px; margin: 0 auto 18px; background: radial-gradient(circle at 50% 40%, #d69a78, #b45f3d); box-shadow: 0 0 0 10px rgba(180,95,61,.06), 0 0 40px rgba(180,95,61,.18); animation: pulse 2.4s infinite; }
@@ -255,7 +285,9 @@
       <span class="spacer"></span>
       <span id="waitChip" class="chip count" style="display:none"></span>
       <button class="ghost" onclick="goHome()">Home</button>
+      <button class="ghost" onclick="openRegistry()">Applications</button>
       <button class="ghost" onclick="openLab()">Demo Lab</button>
+      <button class="ghost" onclick="openOnboarding()">Onboard App</button>
       <button class="primary" onclick="simulate()">Trigger Profile P1</button>
     </header>
 
@@ -305,6 +337,10 @@
       };
 
       const incidents = new Map();
+      let onboardedApps = [];
+      let onboardStep = 0;
+      let onboardDraft = null;
+      let onboardError = "";
       let scenarios = [];
       let selectedId = null;
       const submitState = new Map();   // incidentId -> {phase, message}
@@ -386,8 +422,13 @@
           <h2>Listening for production incidents</h2>
           <p>AOP is monitoring your operations channel. New incidents are matched to an operating procedure and investigated automatically — production actions pause for human approval.</p>
           <div class="hb" id="hbLine">Last heartbeat: —</div>${speedControl()}
-          <div class="acts"><button class="primary" onclick="simulate()">Trigger Profile P1</button><button class="ghost" onclick="openLab()">Open Demo Lab</button></div>
+          <div class="acts"><button class="primary" onclick="simulate()">Trigger Profile P1</button><button class="ghost" onclick="openOnboarding()">Onboard an App</button><button class="ghost" onclick="openLab()">Open Demo Lab</button></div>
+          ${registryPreview()}
         </div>`;
+      }
+      function registryPreview() {
+        const cards = onboardedApps.slice(0,3).map(app=>`<div class="app-mini"><div class="name">${esc(app.name)}</div><div class="meta">${esc(app.environment)} · ${esc(app.owner)}</div><div class="counts">${app.services.length} svc · ${app.triggers.length} triggers · ${app.sops.length} SOP</div></div>`).join("");
+        return `<div class="registry"><div class="registry-head"><h3>Agentic OPS applications</h3><span class="spacer"></span><button class="ghost" onclick="openRegistry()">View registry</button></div>${cards||'<div class="note">No applications onboarded yet.</div>'}</div>`;
       }
       function header(inc) {
         return `<div class="whead"><div>
@@ -579,6 +620,64 @@
       }
       function openInspector() { const d=el("inspDrawer"); d.innerHTML = `<button class="close" onclick="closeAll()">✕</button><div class="insp">${inspectorHtml(incidents.get(selectedId))}</div>`; el("overlay").classList.add("show"); d.classList.add("show"); }
 
+      // ── application onboarding registry ──
+      const splitList = (value) => String(value||"").split(/[,\n]/).map(v=>v.trim()).filter(Boolean);
+      const selected = (value, expected) => value===expected ? " selected" : "";
+      function freshOnboarding() {
+        return { name:"", owner:"", environment:"PRODUCTION", description:"", status:"ACTIVE",
+          services:[{id:"service-api",name:"Service API",baseUrl:"http://127.0.0.1:4200",healthPath:"/healthz",access:{mode:"READ_ONLY",allowedActions:["read_status"],credentialRef:"env:SERVICE_API_TOKEN",approvalRequired:true}}],
+          triggers:[{id:"trigger-latency",type:"METRIC",event:"service.p95",condition:"> 500ms for 3 minutes",severity:"P1",enabled:true}],
+          sops:[{id:"sop-latency",name:"Service Latency Response",version:"1.0.0",matchTerms:["latency","timeout"],serviceIds:["service-api"],steps:["Inspect service health and dependency metrics","Identify the constrained dependency","Freeze the remediation plan","Request approval when required","Execute through the registered connector","Verify customer-facing recovery"],riskClass:"R2",approvalRole:"senior_oncall",enabled:true}] };
+      }
+      function openOnboarding(id) {
+        const existing = id ? onboardedApps.find(a=>a.id===id) : null;
+        onboardDraft = existing ? JSON.parse(JSON.stringify(existing)) : freshOnboarding();
+        onboardStep = 0; onboardError = "";
+        const d=el("drawer"); d.classList.add("wide"); el("overlay").classList.add("show"); d.classList.add("show"); renderOnboarding();
+      }
+      function wizardHead() {
+        return `<button class="close" onclick="closeAll()">✕</button><h2>${onboardDraft.id?"Edit":"Onboard"} Agentic OPS application</h2><p class="note">Define what can trigger the agent, which SOP it may run, and the exact service access it receives.</p><div class="wizard-steps">${["Application","Services + access","Triggers","SOPs","Review"].map((name,i)=>`<div class="wizard-step ${i===onboardStep?"active":i<onboardStep?"done":""}">${i+1}. ${name}</div>`).join("")}</div>`;
+      }
+      function renderOnboarding() {
+        const d=el("drawer"); let body="";
+        if(onboardStep===0) body=`<div class="form-grid">
+          <div class="field"><label>Application name</label><input value="${esc(onboardDraft.name)}" oninput="onboardDraft.name=this.value" placeholder="Payments Platform"></div>
+          <div class="field"><label>Owner / team</label><input value="${esc(onboardDraft.owner)}" oninput="onboardDraft.owner=this.value" placeholder="Commerce Platform"></div>
+          <div class="field"><label>Environment</label><select onchange="onboardDraft.environment=this.value"><option${selected(onboardDraft.environment,"DEVELOPMENT")}>DEVELOPMENT</option><option${selected(onboardDraft.environment,"STAGING")}>STAGING</option><option${selected(onboardDraft.environment,"PRODUCTION")}>PRODUCTION</option></select></div>
+          <div class="field"><label>Status</label><select onchange="onboardDraft.status=this.value"><option${selected(onboardDraft.status,"ACTIVE")}>ACTIVE</option><option${selected(onboardDraft.status,"DRAFT")}>DRAFT</option></select></div>
+          <div class="field full"><label>Operational scope</label><textarea oninput="onboardDraft.description=this.value" placeholder="What customer or business capability does this application own?">${esc(onboardDraft.description)}</textarea></div></div>`;
+        if(onboardStep===1) body=`<p class="note">Grant least-privilege actions per service. Credential fields accept references only—never paste a token.</p>${onboardDraft.services.map(serviceForm).join("")}<button class="ghost" onclick="addService()">+ Add service</button>`;
+        if(onboardStep===2) body=`<p class="note">Triggers describe how incidents enter Agentic OPS. Conditions remain explicit and auditable.</p>${onboardDraft.triggers.map(triggerForm).join("")}<button class="ghost" onclick="addTrigger()">+ Add trigger</button>`;
+        if(onboardStep===3) body=`<p class="note">SOPs bind matching signals to services, ordered steps, risk, and approval policy.</p>${onboardDraft.sops.map(sopForm).join("")}<button class="ghost" onclick="addSop()">+ Add SOP</button>`;
+        if(onboardStep===4) body=onboardingReview();
+        d.innerHTML=wizardHead()+(onboardError?`<div class="wizard-error">${esc(onboardError)}</div>`:"")+body+`<div class="wizard-actions"><button class="ghost" onclick="onboardBack()" ${onboardStep===0?"disabled":""}>Back</button>${onboardStep<4?'<button class="primary" onclick="onboardNext()">Continue</button>':'<button class="primary" onclick="saveOnboarding()">Activate configuration</button>'}</div>`;
+      }
+      function serviceForm(s,i) { return `<div class="repeat-card"><div class="repeat-head"><strong>Service ${i+1}</strong><span class="tag">least privilege</span><span class="spacer"></span>${onboardDraft.services.length>1?`<button onclick="removeService(${i})">Remove</button>`:""}</div><div class="form-grid">
+        <div class="field"><label>Service id</label><input value="${esc(s.id)}" oninput="onboardDraft.services[${i}].id=this.value"></div><div class="field"><label>Display name</label><input value="${esc(s.name)}" oninput="onboardDraft.services[${i}].name=this.value"></div>
+        <div class="field full"><label>Base URL</label><input value="${esc(s.baseUrl)}" oninput="onboardDraft.services[${i}].baseUrl=this.value"></div><div class="field"><label>Health path</label><input value="${esc(s.healthPath)}" oninput="onboardDraft.services[${i}].healthPath=this.value"></div>
+        <div class="field"><label>Access mode</label><select onchange="onboardDraft.services[${i}].access.mode=this.value"><option${selected(s.access.mode,"READ_ONLY")}>READ_ONLY</option><option${selected(s.access.mode,"CONTROLLED_WRITE")}>CONTROLLED_WRITE</option><option${selected(s.access.mode,"FULL")}>FULL</option></select></div>
+        <div class="field full"><label>Allowed actions (comma separated)</label><input value="${esc(s.access.allowedActions.join(", "))}" oninput="onboardDraft.services[${i}].access.allowedActions=splitList(this.value)"></div>
+        <div class="field"><label>Credential reference</label><input value="${esc(s.access.credentialRef||"")}" oninput="onboardDraft.services[${i}].access.credentialRef=this.value" placeholder="vault:team/service"></div><div class="field"><label>Approval policy</label><select onchange="onboardDraft.services[${i}].access.approvalRequired=this.value==='true'"><option value="true"${s.access.approvalRequired?" selected":""}>Required for writes</option><option value="false"${!s.access.approvalRequired?" selected":""}>Policy decides</option></select></div></div></div>`; }
+      function triggerForm(t,i) { return `<div class="repeat-card"><div class="repeat-head"><strong>Trigger ${i+1}</strong><span class="stat st-RUNNING">${esc(t.severity)}</span><span class="spacer"></span>${onboardDraft.triggers.length>1?`<button onclick="removeTrigger(${i})">Remove</button>`:""}</div><div class="form-grid">
+        <div class="field"><label>Type</label><select onchange="onboardDraft.triggers[${i}].type=this.value"><option${selected(t.type,"METRIC")}>METRIC</option><option${selected(t.type,"WEBHOOK")}>WEBHOOK</option><option${selected(t.type,"SLACK")}>SLACK</option><option${selected(t.type,"EVENT_BUS")}>EVENT_BUS</option><option${selected(t.type,"SCHEDULE")}>SCHEDULE</option></select></div>
+        <div class="field"><label>Severity</label><select onchange="onboardDraft.triggers[${i}].severity=this.value"><option${selected(t.severity,"P1")}>P1</option><option${selected(t.severity,"P2")}>P2</option><option${selected(t.severity,"P3")}>P3</option></select></div>
+        <div class="field"><label>Event / signal</label><input value="${esc(t.event)}" oninput="onboardDraft.triggers[${i}].event=this.value"></div><div class="field"><label>Condition</label><input value="${esc(t.condition)}" oninput="onboardDraft.triggers[${i}].condition=this.value"></div></div></div>`; }
+      function sopForm(s,i) { return `<div class="repeat-card"><div class="repeat-head"><strong>SOP ${i+1}</strong><span class="tag">${esc(s.riskClass)}</span><span class="spacer"></span>${onboardDraft.sops.length>1?`<button onclick="removeSop(${i})">Remove</button>`:""}</div><div class="form-grid">
+        <div class="field"><label>Name</label><input value="${esc(s.name)}" oninput="onboardDraft.sops[${i}].name=this.value"></div><div class="field"><label>Version</label><input value="${esc(s.version)}" oninput="onboardDraft.sops[${i}].version=this.value"></div>
+        <div class="field full"><label>Match terms</label><input value="${esc(s.matchTerms.join(", "))}" oninput="onboardDraft.sops[${i}].matchTerms=splitList(this.value)"></div><div class="field full"><label>Service ids</label><input value="${esc(s.serviceIds.join(", "))}" oninput="onboardDraft.sops[${i}].serviceIds=splitList(this.value)"></div>
+        <div class="field"><label>Risk class</label><select onchange="onboardDraft.sops[${i}].riskClass=this.value"><option${selected(s.riskClass,"R0")}>R0</option><option${selected(s.riskClass,"R1")}>R1</option><option${selected(s.riskClass,"R2")}>R2</option><option${selected(s.riskClass,"R3")}>R3</option></select></div><div class="field"><label>Approval role</label><input value="${esc(s.approvalRole||"")}" oninput="onboardDraft.sops[${i}].approvalRole=this.value" placeholder="senior_oncall"></div>
+        <div class="field full"><label>Ordered steps (one per line)</label><textarea oninput="onboardDraft.sops[${i}].steps=splitList(this.value)">${esc(s.steps.join("\n"))}</textarea></div></div></div>`; }
+      function onboardingReview() { return `<div class="card"><div class="eyebrow orange">Configuration ready for validation</div><div class="review-row"><span>Application</span><strong>${esc(onboardDraft.name||"—")}</strong></div><div class="review-row"><span>Owner / environment</span><strong>${esc(onboardDraft.owner||"—")} · ${esc(onboardDraft.environment)}</strong></div><div class="review-row"><span>Services + access</span><strong>${onboardDraft.services.map(s=>`${esc(s.name||s.id)} (${esc(s.access.mode)}: ${s.access.allowedActions.length} actions)`).join("<br>")}</strong></div><div class="review-row"><span>Triggers</span><strong>${onboardDraft.triggers.map(t=>`${esc(t.type)} · ${esc(t.event)} · ${esc(t.severity)}`).join("<br>")}</strong></div><div class="review-row"><span>SOPs</span><strong>${onboardDraft.sops.map(s=>`${esc(s.name)} v${esc(s.version)} · ${esc(s.riskClass)} · ${s.steps.length} steps`).join("<br>")}</strong></div><div class="note">Activation validates service references, credential references, SOP completeness, and approval roles before saving.</div></div>`; }
+      function addService(){onboardDraft.services.push({id:`service-${onboardDraft.services.length+1}`,name:"",baseUrl:"http://127.0.0.1:4200",healthPath:"/healthz",access:{mode:"READ_ONLY",allowedActions:["read_status"],credentialRef:"env:SERVICE_API_TOKEN",approvalRequired:true}});renderOnboarding()}
+      function addTrigger(){onboardDraft.triggers.push({id:`trigger-${onboardDraft.triggers.length+1}`,type:"WEBHOOK",event:"incident.created",condition:"severity is P1",severity:"P1",enabled:true});renderOnboarding()}
+      function addSop(){onboardDraft.sops.push({id:`sop-${onboardDraft.sops.length+1}`,name:"",version:"1.0.0",matchTerms:[],serviceIds:onboardDraft.services.slice(0,1).map(s=>s.id),steps:[],riskClass:"R2",approvalRole:"senior_oncall",enabled:true});renderOnboarding()}
+      function removeService(i){onboardDraft.services.splice(i,1);renderOnboarding()} function removeTrigger(i){onboardDraft.triggers.splice(i,1);renderOnboarding()} function removeSop(i){onboardDraft.sops.splice(i,1);renderOnboarding()}
+      function onboardNext(){onboardError="";if(onboardStep===0&&(!onboardDraft.name.trim()||!onboardDraft.owner.trim()))onboardError="Application name and owner are required.";if(onboardStep===1&&!onboardDraft.services.length)onboardError="Add at least one service.";if(onboardStep===2&&!onboardDraft.triggers.length)onboardError="Add at least one trigger.";if(onboardStep===3&&!onboardDraft.sops.length)onboardError="Add at least one SOP.";if(!onboardError)onboardStep=Math.min(4,onboardStep+1);renderOnboarding()}
+      function onboardBack(){onboardError="";onboardStep=Math.max(0,onboardStep-1);renderOnboarding()}
+      async function saveOnboarding(){onboardError="";const method=onboardDraft.id?"PUT":"POST";const url=onboardDraft.id?`/api/onboarding/apps/${onboardDraft.id}`:"/api/onboarding/apps";try{const r=await fetch(url,{method,headers:{"content-type":"application/json"},body:JSON.stringify(onboardDraft)});const result=await r.json();if(!r.ok){onboardError=(result.issues||[result.error]).join(" · ");renderOnboarding();return}await loadOnboardedApps();openRegistry(result.app.id)}catch(e){onboardError="Could not save configuration: "+e.message;renderOnboarding()}}
+      async function loadOnboardedApps(){try{const result=await(await fetch("/api/onboarding/apps")).json();onboardedApps=result.apps||[]}catch{onboardedApps=[]}if(!incidents.get(selectedId))renderWorkspace()}
+      function openRegistry(focusId){const d=el("drawer");d.classList.add("wide");let html=`<button class="close" onclick="closeAll()">✕</button><h2>Agentic OPS application registry</h2><p class="note">${onboardedApps.length} application(s) · ${onboardedApps.reduce((n,a)=>n+a.services.length,0)} services · ${onboardedApps.reduce((n,a)=>n+a.triggers.length,0)} triggers · ${onboardedApps.reduce((n,a)=>n+a.sops.length,0)} SOPs</p><div class="acts"><button class="primary" onclick="openOnboarding()">Onboard application</button></div>`;for(const app of onboardedApps){html+=`<div class="repeat-card" style="${focusId===app.id?'border-color:var(--green)':''}"><div class="repeat-head"><strong>${esc(app.name)}</strong><span class="stat st-${app.status==='ACTIVE'?'RESOLVED':'ESCALATED'}">${esc(app.status)}</span><span class="spacer"></span><button onclick="openOnboarding('${app.id}')">Edit</button></div><div class="note">${esc(app.description)}</div><div class="facts"><span class="fk">Owner</span><span class="fv">${esc(app.owner)}</span><span class="fk">Environment</span><span class="fv mono">${esc(app.environment)}</span><span class="fk">Services</span><span class="fv">${app.services.map(s=>`${esc(s.name)} · ${esc(s.access.mode)} · ${s.access.allowedActions.length} actions`).join("<br>")}</span><span class="fk">Triggers</span><span class="fv">${app.triggers.map(t=>`${esc(t.type)} · ${esc(t.event)} · ${esc(t.severity)}`).join("<br>")}</span><span class="fk">SOPs</span><span class="fv">${app.sops.map(s=>`${esc(s.name)} · ${esc(s.riskClass)} · ${esc(s.approvalRole||"automatic")}`).join("<br>")}</span></div></div>`}d.innerHTML=html;el("overlay").classList.add("show");d.classList.add("show")}
+
       // ── demo lab ──
       function openLab() {
         const groups = {};
@@ -591,7 +690,7 @@
         el("drawer").innerHTML = html; el("overlay").classList.add("show"); el("drawer").classList.add("show");
       }
       function runLab(key) { post("/api/trigger", { key, source: "DEMO", playbackDelayMs: playbackDelay() }); closeAll(); }
-      function closeAll() { el("overlay").classList.remove("show"); el("drawer").classList.remove("show"); el("inspDrawer").classList.remove("show"); }
+      function closeAll() { el("overlay").classList.remove("show"); el("drawer").classList.remove("show","wide"); el("inspDrawer").classList.remove("show"); }
 
       // ── top bar ──
       function renderTopBar() {
@@ -637,6 +736,7 @@
       }
 
       connect();
+      loadOnboardedApps();
       post("/api/playback", { delayMs: playbackDelay() });
       pollListener(); setInterval(pollListener, 15000);
       setInterval(() => { if (incidents.get(selectedId) && !TERMINAL.includes(incidents.get(selectedId).status)) renderWorkspace(); }, 1000);
