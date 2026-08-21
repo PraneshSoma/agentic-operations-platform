@@ -1,5 +1,26 @@
 # Composite Context — Product Intent + Engineering Context
 
+`composite-context.json` is the machine-readable routing manifest used by the
+agent loop. Before every handoff, the Supervisor runs
+`loop/tools/build-context-packet.mjs` to resolve a small, content-hashed packet
+for that stage and story under the git-ignored `pipeline/.context/` cache. This
+lets later loops reuse current engineering knowledge without rescanning the
+whole repository or carrying the accumulated conversation.
+
+Generate or inspect packets manually with:
+
+```bash
+pnpm context:packet -- --stage discovery
+pnpm context:packet -- --stage planning --story A-01
+pnpm context:packet -- --stage codegen --story A-01 --stdout
+```
+
+Packets contain pointers and content hashes, not copied source bodies. The
+hash-derived cache key makes unchanged context reusable; a changed source
+invalidates the packet deterministically. Stage routes live only in
+`composite-context.json`, so adding or removing a context source does not
+require editing every agent prompt.
+
 Two context categories that drive Phase 1 (Discovery), separate from
 `requirements/AOP-001-agentic-operations-platform.md` (the implementation
 spec — architecture-shaped) and `CONTEXT.md` (the Build-loop's engineering

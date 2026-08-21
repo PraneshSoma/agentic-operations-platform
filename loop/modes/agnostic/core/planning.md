@@ -16,6 +16,7 @@
 ```json
 {
   "story_id": "<e.g. A-01>",
+  "context_packet": "pipeline/.context/<story_id>/planning.json",
   "story_content": "<full story + acceptance criteria from your requirement source>",
   "context_carried": {
     "completed_classes": ["<from prior stories>"],
@@ -24,6 +25,12 @@
   "self_heal": null
 }
 ```
+
+Read `context_packet` first. It contains the exact Engineering Context, build
+rules, acceptance criteria, and story-referenced specification/LLD/ADR sources
+for this run, each content-hashed. Read sources in packet order and inspect only
+the relevant implementation modules needed to choose a style reference. Do not
+perform a repository-wide architecture scan.
 
 You also have access to your project context file (auto-loaded). On a self-heal
 retry, `self_heal` carries `failed_checks` + your `prior_output_summary`; output

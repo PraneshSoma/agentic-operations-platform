@@ -10,7 +10,7 @@ tools: ['edit','search','runCommands','runTasks']
 Activate the **supervisor** agent and run its loop. Reads
 `config/loop.config.json`, builds the story queue, and runs
 planning -> codegen -> testgen -> rfc per story with HIL gates, budget
-enforcement, and self-heal.
+enforcement, self-heal, and stage-scoped Composite Context packets.
 
 Usage:
   /run-pipeline req=AOP-001

@@ -8,8 +8,13 @@
 
 ## Inputs
 ```json
-{ "shadow_verdict": "<PASS required>", "review_report": "<all gates pass required>", "self_heal": null }
+{ "context_packet": "pipeline/.context/initiative/release.json", "shadow_verdict": "<PASS required>", "review_report": "<all gates pass required>", "self_heal": null }
 ```
+
+Read `context_packet` first. It supplies the current topology, integration
+inventory, deployment constraints, approved requirements, and LLD. Use it to
+avoid rediscovering release dependencies, but stop on any packet-listed missing
+production input rather than inventing one.
 
 ## Job
 Produce the cutover runbook, rollback plan, and retirement milestone; execute the

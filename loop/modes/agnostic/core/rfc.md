@@ -16,6 +16,7 @@
 ```json
 {
   "story_id": "<e.g. A-01>",
+  "context_packet": "pipeline/.context/<story_id>/rfc.json",
   "planning_context": "<full planning_context.json>",
   "codegen_output": {
     "files_created": [], "tables_added": [], "endpoints_added": [], "flags_added": []
@@ -26,6 +27,10 @@
   "pipeline_state": { "stories_done": [], "stories_pending": "<N>", "stories_blocked": [] }
 }
 ```
+
+Read `context_packet` first. Use its story acceptance criteria, approved plan,
+Engineering Context, and source hashes to make the PR summary reproducible.
+Summarize only the story's artifacts; do not rescan unrelated workspaces.
 
 You also have access to your project context file and the repo's PR template if
 one exists.

@@ -122,6 +122,15 @@
     "run_lock": true,
     "pin_prompt_and_model_versions": true
   },
+  "composite_context": {
+    "manifest": "context/composite-context.json",
+    "packet_builder": "loop/tools/build-context-packet.mjs",
+    "packet_cache": "pipeline/.context",
+    "required_before_handoff": true,
+    "cache_by_content_hash": true,
+    "fail_on_missing_required_source": true,
+    "_doc": "The Supervisor generates a stage-scoped packet before every handoff. Packets contain the exact routed sources, content hashes, story acceptance criteria, and always-on invariants. Agents may expand beyond the packet only after recording a missing-context reason."
+  },
   "_hil_doc": "Default ALL gates ON for first run. Per-story effect only — never mid-story.",
   "hil": {
     "discovery": true,

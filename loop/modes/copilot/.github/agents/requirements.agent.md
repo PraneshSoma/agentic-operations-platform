@@ -13,8 +13,13 @@ handoffs: ['supervisor']
 
 ## Inputs
 ```json
-{ "discovery_brief": "<from Discovery Agent>", "constraints": [], "self_heal": null }
+{ "context_packet": "pipeline/.context/initiative/requirements.json", "discovery_brief": "<from Discovery Agent>", "constraints": [], "self_heal": null }
 ```
+
+Read `context_packet` first. It provides the approved Product Context,
+Engineering Context, technical constraints, discovery output, and normative
+specification with content hashes. Do not rediscover the repository or load
+Design/Build artifacts not routed to this stage.
 
 ## Job
 Turn the brief into functional + non-functional requirements with testable

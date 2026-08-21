@@ -13,6 +13,7 @@
     "demo": "pnpm --filter @aop/demo start",
     "ui": "pnpm --filter @aop/control-tower start",
     "customer-domain": "pnpm --filter @aop/control-tower customer-domain",
+    "context:packet": "node loop/tools/build-context-packet.mjs",
     "test": "vitest run",
     "test:integration": "VITEST_INTEGRATION=1 vitest run",
     "lint": "eslint .",

@@ -13,8 +13,12 @@ handoffs: ['supervisor']
 
 ## Inputs
 ```json
-{ "old_path": "<baseline system/path>", "new_path": "<built system/path>", "endpoints": [], "ramp": [5,25,50,100], "self_heal": null }
+{ "context_packet": "pipeline/.context/initiative/shadow.json", "old_path": "<baseline system/path>", "new_path": "<built system/path>", "endpoints": [], "ramp": [5,25,50,100], "self_heal": null }
 ```
+
+Read `context_packet` first. It supplies current system boundaries, constraints,
+requirements, and approved design. Restrict comparison discovery to endpoints
+and paths named by the packet and explicit inputs.
 
 ## Job
 Run both paths on the same inputs across a traffic ramp; diff responses
