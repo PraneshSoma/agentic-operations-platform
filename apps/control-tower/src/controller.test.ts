@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { Controller, defaultSubject, type TriggerContext } from "./controller.js";
+import { Controller, defaultSeverity, defaultSubject, type TriggerContext } from "./controller.js";
 import { DecisionRegistry } from "./decision-registry.js";
 import { IncidentStore } from "./incident-store.js";
 
@@ -27,6 +27,24 @@ describe("Controller", () => {
     const r = controller.trigger({ key: "budget" });
     expect(r.ok).toBe(true);
     expect(run).toHaveBeenCalledWith(expect.objectContaining({ scenario: expect.objectContaining({ scene: 6 }) }));
+  });
+
+  it("stamps meta on create: P1 for the happy path, honest source, service, gate", () => {
+    const { store, controller } = make(() => "INC-M");
+    controller.trigger({ key: "happy-path", source: "SIMULATOR" });
+    expect(store.get("INC-M")).toMatchObject({ severity: "P1", service: "checkout-service", source: "SIMULATOR", mode: "Auto investigation", humanGate: "Required for R2+ actions" });
+  });
+
+  it("defaults source to SIMULATOR and severity to P2 for guardrail scenes", () => {
+    const { store, controller } = make(() => "INC-G");
+    controller.trigger({ key: "budget" });
+    expect(store.get("INC-G")).toMatchObject({ severity: "P2", source: "SIMULATOR" });
+  });
+
+  it("honors an explicit source (e.g. SLACK, DEMO)", () => {
+    const { store, controller } = make(() => "INC-S");
+    controller.trigger({ key: "happy-path", source: "SLACK" });
+    expect(store.get("INC-S")!.source).toBe("SLACK");
   });
 
   it("triggers a scenario by scene number", () => {
@@ -78,5 +96,12 @@ describe("defaultSubject", () => {
     const subjects = [1, 2, 3, 4, 5, 6].map(defaultSubject);
     expect(new Set(subjects).size).toBe(6);
     expect(defaultSubject(99)).toBe("Incident");
+  });
+});
+
+describe("defaultSeverity", () => {
+  it("is P1 for the happy path and P2 otherwise", () => {
+    expect(defaultSeverity(1)).toBe("P1");
+    expect(defaultSeverity(4)).toBe("P2");
   });
 });

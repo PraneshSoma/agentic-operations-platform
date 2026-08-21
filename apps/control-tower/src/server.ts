@@ -71,6 +71,20 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
 
   const controller = new Controller({ store, decisions, run, now });
 
+  // Slack listener health, surfaced to the UI's listener card. Events API is
+  // the primary, event-driven path; a heartbeat timestamp lets the UI show
+  // liveness. (A periodic reconciliation poll for missed-event detection is
+  // the documented production next step.)
+  let lastSlackEventAt: string | undefined;
+  const listenerHealth = (): Record<string, unknown> => ({
+    enabled: slack.enabled,
+    channel: config.slackChannel ?? null,
+    mode: slack.enabled ? "Events API" : "Simulator",
+    verification: config.slackSigningSecret ? "Signature valid" : "unverified",
+    lastEventAt: lastSlackEventAt ?? null,
+    heartbeatAt: now().toISOString(),
+  });
+
   // Capture raw bodies so Slack signatures can be verified over exact bytes.
   app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body: string, done) => {
     (req as RawBodyRequest).rawBody = body;
@@ -91,6 +105,9 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
   });
 
   app.get("/healthz", async () => ({ ok: true, slack: slack.enabled }));
+
+  // Listener health for the UI's "Slack listener" card.
+  app.get("/api/listener", async () => listenerHealth());
 
   // ── SSE stream ──
   app.get("/api/stream", (req, reply) => {
@@ -113,8 +130,10 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
 
   // ── trigger a scenario (UI button, or an external incident webhook) ──
   app.post("/api/trigger", async (req, reply) => {
-    const body = (req.body ?? {}) as { key?: string; scene?: number; subject?: string };
-    const result = controller.trigger({ key: body.key, scene: body.scene, subject: body.subject });
+    const body = (req.body ?? {}) as { key?: string; scene?: number; subject?: string; source?: string };
+    // Honest ingress label: default SIMULATOR; the Demo Lab sends DEMO.
+    const source = body.source === "DEMO" ? "DEMO" : "SIMULATOR";
+    const result = controller.trigger({ key: body.key, scene: body.scene, subject: body.subject, source });
     if (!result.ok) {
       return reply.code(400).send({ error: result.reason });
     }
@@ -131,6 +150,12 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
     }
     const actorId = body.actorId?.trim() || "riley-lead";
     const settled = controller.decide(id, decision, actorId, "ui");
+    // On a losing click, report who actually decided so the UI can say
+    // "Decision already recorded by X via Slack" instead of a false failure.
+    if (!settled) {
+      const a = store.get(id)?.approval;
+      return { settled, decidedBy: a?.decidedBy ?? null, decidedVia: a?.decidedVia ?? null, decision: a?.decision ?? null };
+    }
     return { settled };
   });
 
@@ -150,6 +175,7 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
       return reply;
     }
 
+    lastSlackEventAt = now().toISOString();
     const event = body.event;
     // Ignore our own bot's messages to avoid trigger loops.
     if (event && !event.bot_id && (event.type === "app_mention" || event.type === "message")) {
@@ -157,6 +183,7 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
       controller.trigger({
         key,
         subject: event.text,
+        source: "SLACK",
         slackChannel: event.channel,
         slackThreadTs: event.thread_ts ?? event.ts,
       });

@@ -11,7 +11,7 @@
  * runner (build a Presenter, call runScenario) in one place.
  */
 import type { DecisionChannel, DecisionRegistry } from "./decision-registry.js";
-import type { IncidentStore } from "./incident-store.js";
+import type { IncidentSeverity, IncidentSource, IncidentStore } from "./incident-store.js";
 import { scenarioByKey, scenarioByScene, type Scenario } from "./scenarios.js";
 
 export interface TriggerContext {
@@ -28,6 +28,8 @@ export interface TriggerInput {
   key?: string | undefined;
   scene?: number | undefined;
   subject?: string | undefined;
+  /** Honest ingress label — SIMULATOR for the sim button, SLACK for a real Slack event, DEMO for the lab. */
+  source?: IncidentSource | undefined;
   slackChannel?: string | undefined;
   slackThreadTs?: string | undefined;
 }
@@ -82,6 +84,13 @@ export class Controller {
       sceneTitle: scenario.title,
       subject,
       at: this.deps.now().toISOString(),
+      meta: {
+        severity: defaultSeverity(scenario.scene),
+        service: "checkout-service",
+        source: input.source ?? "SIMULATOR",
+        mode: "Auto investigation",
+        humanGate: "Required for R2+ actions",
+      },
     });
     this.deps.run({
       scenario,
@@ -101,6 +110,11 @@ export class Controller {
   decide(incidentId: string, decision: "APPROVED" | "REJECTED", actorId: string, via: DecisionChannel): boolean {
     return this.deps.decisions.resolve(incidentId, { decision, actorId, via });
   }
+}
+
+/** The happy-path incident is a P1; the guardrail scenarios ride in as P2. */
+export function defaultSeverity(scene: number): IncidentSeverity {
+  return scene === 1 ? "P1" : "P2";
 }
 
 /** A human-readable default subject when the trigger didn't supply one. */

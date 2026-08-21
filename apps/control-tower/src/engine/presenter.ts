@@ -9,7 +9,7 @@
  * covered on their own. Slack failures are swallowed so a missing/broken
  * Slack app never breaks the UI-only demo.
  */
-import type { ApprovalRequest, IncidentStore, Lane } from "../incident-store.js";
+import type { AnalysisView, ApprovalRequest, IncidentStore, Lane, TrustEnvelope } from "../incident-store.js";
 import {
   approvalRequestBlocks,
   approvalResolvedBlocks,
@@ -90,6 +90,16 @@ export class Presenter {
 
   async lane(lane: Lane): Promise<void> {
     this.deps.store.setLane(this.deps.incidentId, this.at(), lane);
+  }
+
+  /** Sets the current-analysis card (store-only, no Slack side effect). */
+  async analysis(view: AnalysisView): Promise<void> {
+    this.deps.store.setAnalysis(this.deps.incidentId, this.at(), view);
+  }
+
+  /** Merges fields into the trust envelope (store-only, no Slack side effect). */
+  async trust(patch: TrustEnvelope): Promise<void> {
+    this.deps.store.setTrust(this.deps.incidentId, this.at(), patch);
   }
 
   async step(text: string): Promise<void> {

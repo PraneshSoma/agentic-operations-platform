@@ -84,6 +84,25 @@ describe("IncidentStore", () => {
     expect(() => store.recordDecision("INC-1", AT2, "APPROVED", "riley", "ui")).toThrow(/no pending approval/);
   });
 
+  it("carries meta (severity/service/source/mode/gate) from create", () => {
+    const store = new IncidentStore();
+    const inc = store.create({ id: "INC-2", scene: 1, sceneTitle: "t", subject: "s", at: AT, meta: { severity: "P1", service: "checkout-service", source: "SIMULATOR", mode: "Auto investigation", humanGate: "Required for R2+ actions" } });
+    expect(inc).toMatchObject({ severity: "P1", service: "checkout-service", source: "SIMULATOR", mode: "Auto investigation", humanGate: "Required for R2+ actions" });
+  });
+
+  it("sets the current-analysis view", () => {
+    const { store } = make();
+    store.setAnalysis("INC-1", AT2, { likelyCause: "deploy regression", claims: 3, grounded: 3, missingContext: 0, staleContext: 0 });
+    expect(store.get("INC-1")!.analysis).toEqual({ likelyCause: "deploy regression", claims: 3, grounded: 3, missingContext: 0, staleContext: 0 });
+  });
+
+  it("merges trust-envelope fields incrementally", () => {
+    const { store } = make();
+    store.setTrust("INC-1", AT2, { procedure: "opc_error_spike", procedureVersion: "v1.0.0" });
+    store.setTrust("INC-1", AT2, { policy: "REQUIRE_APPROVAL", ledger: 10 });
+    expect(store.get("INC-1")!.trust).toEqual({ procedure: "opc_error_spike", procedureVersion: "v1.0.0", policy: "REQUIRE_APPROVAL", ledger: 10 });
+  });
+
   it("throws on any mutation of an unknown incident", () => {
     const { store } = make();
     expect(() => store.append("nope", AT2, { kind: "step", text: "x" })).toThrow(/No incident nope/);

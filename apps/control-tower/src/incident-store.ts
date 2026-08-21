@@ -76,6 +76,46 @@ export interface SlackLink {
   approvalTs?: string | undefined;
 }
 
+export type IncidentSeverity = "P1" | "P2" | "P3";
+
+/** Where the incident entered from — labeled honestly (never claim SLACK for a simulated event). */
+export type IncidentSource = "SLACK" | "SIMULATOR" | "DEMO";
+
+/**
+ * The "what is the system doing now" view for the current-decision card.
+ * Deliberately carries NO single fabricated confidence percentage — this
+ * platform's differentiator is itemized, evidence-grounded confidence, so
+ * we surface the real grounded-claim counts instead of an invented rollup.
+ */
+export interface AnalysisView {
+  likelyCause: string;
+  claims: number;
+  grounded: number;
+  missingContext: number;
+  staleContext: number;
+}
+
+/**
+ * The trust envelope — the audit-integrity summary the right inspector
+ * renders. Every field is a real value produced by the governed pipeline,
+ * not decoration.
+ */
+export interface TrustEnvelope {
+  procedure?: string | undefined;
+  procedureVersion?: string | undefined;
+  /** e.g. "4/4" fresh. */
+  contextFresh?: string | undefined;
+  /** e.g. "6/6" evidence-grounded. */
+  claims?: string | undefined;
+  planIntegrity?: string | undefined;
+  planHash?: string | undefined;
+  policy?: string | undefined;
+  authorization?: string | undefined;
+  /** SANDBOX vs REAL — honest connector labeling. */
+  connector?: string | undefined;
+  ledger?: number | undefined;
+}
+
 export interface Incident {
   id: string;
   scene: number;
@@ -83,6 +123,15 @@ export interface Incident {
   subject: string;
   lane: Lane;
   status: IncidentStatus;
+  severity?: IncidentSeverity | undefined;
+  service?: string | undefined;
+  source?: IncidentSource | undefined;
+  /** e.g. "Auto investigation". */
+  mode?: string | undefined;
+  /** e.g. "Required for R2+ actions". */
+  humanGate?: string | undefined;
+  analysis?: AnalysisView | undefined;
+  trust?: TrustEnvelope | undefined;
   timeline: TimelineEntry[];
   approval?: ApprovalRequest | undefined;
   slack?: SlackLink | undefined;
@@ -92,12 +141,21 @@ export interface Incident {
 
 export type ChangeListener = (incident: Incident) => void;
 
+export interface IncidentMeta {
+  severity?: IncidentSeverity | undefined;
+  service?: string | undefined;
+  source?: IncidentSource | undefined;
+  mode?: string | undefined;
+  humanGate?: string | undefined;
+}
+
 export interface CreateIncidentInput {
   id: string;
   scene: number;
   sceneTitle: string;
   subject: string;
   at: string;
+  meta?: IncidentMeta | undefined;
 }
 
 /**
@@ -137,6 +195,11 @@ export class IncidentStore {
       subject: input.subject,
       lane: "RECEIVED",
       status: "RUNNING",
+      severity: input.meta?.severity,
+      service: input.meta?.service,
+      source: input.meta?.source,
+      mode: input.meta?.mode,
+      humanGate: input.meta?.humanGate,
       timeline: [],
       createdAt: input.at,
       updatedAt: input.at,
@@ -185,6 +248,20 @@ export class IncidentStore {
   setApproval(id: string, at: string, approval: ApprovalRequest): Incident {
     return this.mutate(id, at, (incident) => {
       incident.approval = approval;
+    });
+  }
+
+  /** Sets the current-analysis view (the "what's happening now" card). */
+  setAnalysis(id: string, at: string, analysis: AnalysisView): Incident {
+    return this.mutate(id, at, (incident) => {
+      incident.analysis = analysis;
+    });
+  }
+
+  /** Merges fields into the trust envelope, so the pipeline can fill it incrementally. */
+  setTrust(id: string, at: string, patch: TrustEnvelope): Incident {
+    return this.mutate(id, at, (incident) => {
+      incident.trust = { ...incident.trust, ...patch };
     });
   }
 

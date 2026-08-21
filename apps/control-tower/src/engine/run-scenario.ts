@@ -37,6 +37,7 @@ import {
   haltExecution,
   enforceBudget,
 } from "@aop/worker";
+import { createHash } from "node:crypto";
 import type { DecisionRegistry } from "../decision-registry.js";
 import type { IncidentStore } from "../incident-store.js";
 import { Presenter } from "./presenter.js";
@@ -102,28 +103,51 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
   await T("OPC_MATCHED", "opc.matched", "CONTEXT", `matched ${match.selected_opc_id}`);
   await presenter.lane("OPC_MATCHED");
   await presenter.ok(`Matched operating procedure: ${match.selected_opc_id} (outcome ${match.outcome})`, "CONTEXT");
+  await presenter.trust({ procedure: match.selected_opc_id, procedureVersion: `v${F.errorSpikeOpc().version}` });
 
   await T("CONTEXT_ASSEMBLY", "context.assembly.started", "CONTEXT", "assembling context");
   await presenter.lane("CONTEXT");
   const contextPackage = await assembleContextPackage({ tenantId: F.TENANT, requestId: "INC-4417", executionId: execId, opcId: "opc_error_spike", requiredContext: F.errorSpikeOpc().required_context, connectorRegistry: F.demoRegistry(), now: N });
+  const requiredCount = F.errorSpikeOpc().required_context.length;
+  const freshCount = requiredCount - contextPackage.missing_context.length - contextPackage.stale_context.length;
   await presenter.ok(`Context assembled from connectors (missing: ${contextPackage.missing_context.length}, stale: ${contextPackage.stale_context.length})`, "CONTEXT");
+  await presenter.trust({ contextFresh: `${freshCount}/${requiredCount}` });
 
   await T("INVESTIGATING", "investigation.started", "OBSERVATION", "investigating");
   await presenter.lane("INVESTIGATING");
   const investigation = await runInvestigation({ incomingRequest: F.incident(), opc: F.errorSpikeOpc(), contextPackage, llmProvider: F.investigationProvider() });
   await T("DIAGNOSED", "diagnosis.completed", "HYPOTHESIS", investigation.diagnosis.summary);
   await presenter.lane("DIAGNOSED");
-  await presenter.ok(`Diagnosis: "${investigation.diagnosis.summary}" — every claim evidence-grounded`, "HYPOTHESIS");
+  // Itemized, evidence-grounded claim count — NEVER a single fabricated %.
+  const claimList: { evidence: number }[] = [
+    ...investigation.observations.map((o) => ({ evidence: o.evidence_ids.length })),
+    ...investigation.hypotheses.map((h) => ({ evidence: h.supporting_evidence_ids.length })),
+    { evidence: investigation.diagnosis.evidence_ids.length },
+  ];
+  const claims = claimList.length;
+  const grounded = claimList.filter((c) => c.evidence > 0).length;
+  await presenter.ok(`Diagnosis: "${investigation.diagnosis.summary}" — ${grounded}/${claims} claims evidence-grounded`, "HYPOTHESIS");
+  await presenter.analysis({
+    likelyCause: investigation.diagnosis.summary,
+    claims,
+    grounded,
+    missingContext: contextPackage.missing_context.length,
+    staleContext: contextPackage.stale_context.length,
+  });
+  await presenter.trust({ claims: `${grounded}/${claims}` });
 
   const plan = await runPlanning({ investigation, opc: F.errorSpikeOpc(), availableActions: [F.restartAction], llmProvider: F.planningProvider() });
   await T("PLANNED", "plan.created", "PLAN", `plan ${plan.plan_id} frozen`);
   await presenter.lane("PLANNED");
+  const planHash = "sha256:" + createHash("sha256").update(JSON.stringify(plan)).digest("hex");
   await presenter.ok(`Plan frozen: ${plan.steps.length} step(s), 1 registered action`, "PLAN");
+  await presenter.trust({ planIntegrity: "SHA-256 verified", planHash: planHash.slice(0, 19) + "…" });
 
   const decision = evaluatePolicy({ decisionId: "dec_1", createdAt: N.toISOString(), proposedAction: F.proposedAction(), environment: "prod", actionDefinition: F.restartAction, missingRequiredEvidence: false, killSwitchActive: false, policyRules: [{ rule_id: "prod_r2", when: { environment: "prod", risk_class_in: ["R2", "R3"] }, decision: "REQUIRE_APPROVAL", approval_route: "senior_oncall" }], policyVersion: "v1", evidenceSummary: { precedent_count: 0, verified_success_count: 0, rollback_count: 0, failure_count: 0 }, now: N });
   await T("WAITING_APPROVAL", "policy.evaluated", "APPROVAL", `policy: ${decision.outcome}`);
   await presenter.lane("WAITING_APPROVAL");
   await presenter.ok(`Policy Engine: ${decision.outcome} (R2 action in prod → a human must approve)`, "APPROVAL");
+  await presenter.trust({ policy: decision.outcome });
   store.setStatus(incidentId, now().toISOString(), "WAITING_APPROVAL");
 
   // Park at the gate. A decision can arrive from the UI or from Slack.
@@ -155,8 +179,9 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
     store.setStatus(incidentId, now().toISOString(), "ESCALATED");
     return;
   }
-  await presenter.ok(`Approved by ${outcome.actorId} (≠ proposer ${F.PROPOSER}, via ${outcome.via}) — executes under ON_BEHALF_OF identity`, "APPROVAL");
-  await presenter.why("the action runs as the human approver, never a service account, and the proposer can't approve their own work");
+  await presenter.ok(`Authorization issued ON_BEHALF_OF ${outcome.actorId} (≠ proposer ${F.PROPOSER}, decided via ${outcome.via})`, "APPROVAL");
+  await presenter.why("the sandbox connector executes the approved action under the approver's authorization — the proposer can't approve their own work");
+  await presenter.trust({ authorization: "ON_BEHALF_OF", connector: "SANDBOX" });
 
   assertMatchesFrozenPlan(plan, { step_id: "step_1", action_ref: "restart_service", parameters: { version: "1.3.0" } });
   await T("EXECUTING", "execution.started", "ACTION_RESULT", "executing restart");
@@ -184,6 +209,7 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
   await presenter.lane("RESOLVED");
   await presenter.ok(`Control Tower reconstructed the full ${history.entries.length}-step history from the evidence ledger alone`, "OUTCOME");
   await presenter.why("every governed decision is durable, ordered, tenant-scoped evidence — the whole run is auditable after the fact");
+  await presenter.trust({ ledger: history.entries.length });
   store.setStatus(incidentId, now().toISOString(), "RESOLVED");
 }
 

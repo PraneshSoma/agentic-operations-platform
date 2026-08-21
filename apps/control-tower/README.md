@@ -1,11 +1,23 @@
 # Control Tower — interactive demo
 
-An interactive web UI for the Agentic Operations Platform demo. One incident
-trigger, a live board that shows the governed pipeline moving in real time, a
-**live approval gate you can act on from the UI or a real Slack thread**, and
-buttons to fire the five guardrail scenes. It runs the **same real platform
-code** the CLI demo (`pnpm demo`) and the test suite exercise — the UI just
-streams it.
+A production-styled **operations console** for the Agentic Operations
+Platform. The screen is an *incident workspace surrounded by a visible trust
+envelope*: the left rail lists incidents, the center shows the selected
+incident's lifecycle and the current decision, and the right inspector proves
+*why each action was allowed* — procedure + version, context freshness,
+evidence-grounded claims, the frozen-plan hash, the policy result, the
+`ON_BEHALF_OF` authorization, the connector (SANDBOX vs real), and the ledger
+event count. A **live approval gate can be acted on from the UI or a real
+Slack thread** (first valid decision wins), and a **Demo Lab** drawer houses
+the five guardrail scenarios. It runs the **same real platform code** the CLI
+demo (`pnpm demo`) and the test suite exercise — the UI just streams it.
+
+Design language: light, warm enterprise console (Commerce Trust Labs) —
+Manrope + DM Mono, orange for *authorization required*, blue for
+*evidence/context*, green only for *verified*, red only for *blocked/failed*.
+Confidence is shown as **itemized, evidence-grounded dimensions — never a
+single fabricated percentage**, because that honesty is the product's whole
+point.
 
 ```
 ┌──────────── trigger ────────────┐        ┌──────── act from anywhere ───────┐
