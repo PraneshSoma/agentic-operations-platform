@@ -21,6 +21,8 @@ export interface TriggerContext {
   /** Set when the trigger came from Slack, so the engine threads there. */
   slackChannel?: string | undefined;
   slackThreadTs?: string | undefined;
+  /** Enables human-visible pacing for interactive demo runs. */
+  paced?: boolean | undefined;
 }
 
 export interface TriggerInput {
@@ -32,6 +34,7 @@ export interface TriggerInput {
   source?: IncidentSource | undefined;
   slackChannel?: string | undefined;
   slackThreadTs?: string | undefined;
+  paced?: boolean | undefined;
 }
 
 export type TriggerResult =
@@ -86,7 +89,7 @@ export class Controller {
       at: this.deps.now().toISOString(),
       meta: {
         severity: defaultSeverity(scenario.scene),
-        service: "checkout-service",
+        service: defaultService(scenario.scene),
         source: input.source ?? "SIMULATOR",
         mode: "Auto investigation",
         humanGate: "Required for R2+ actions",
@@ -98,6 +101,7 @@ export class Controller {
       subject,
       slackChannel: input.slackChannel,
       slackThreadTs: input.slackThreadTs,
+      paced: input.paced,
     });
     return { ok: true, incidentId, scenario };
   }
@@ -123,16 +127,30 @@ export function defaultSubject(scene: number): string {
     case 1:
       return "Checkout error rate spike";
     case 2:
-      return "Something is wrong with the service";
+      return "Customer profile and wallet ownership do not agree";
     case 3:
-      return "Post-approval parameter substitution attempt";
+      return "Approved wallet limit changed before execution";
     case 4:
-      return "Target drifted between approval and execution";
+      return "Wallet ledger revision changed after approval";
     case 5:
-      return "Emergency halt of an in-flight execution";
+      return "Emergency halt of an in-flight customer profile merge";
     case 6:
-      return "Runaway investigation over token budget";
+      return "Wallet-risk investigation exceeded its token budget";
     default:
       return "Incident";
+  }
+}
+
+export function defaultService(scene: number): string {
+  switch (scene) {
+    case 2:
+    case 5:
+      return "customer-profile-service";
+    case 3:
+    case 4:
+    case 6:
+      return "wallet-service";
+    default:
+      return "checkout-service";
   }
 }

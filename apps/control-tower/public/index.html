@@ -147,6 +147,24 @@
       .stage.term .sd { background: var(--red); }
       .stage .ev { font-size: 9px; color: var(--muted); }
 
+      /* live activity + playback pacing */
+      .activity { position: relative; overflow: hidden; }
+      .activity::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--orange); }
+      .activity-head { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap; }
+      .activity-copy { flex: 1 1 300px; min-width: 0; }
+      .activity-title { font-size: 15px; font-weight: 750; margin: 3px 0 6px; color: var(--ink); }
+      .activity-doing { font-size: 13px; line-height: 1.55; color: var(--muted); max-width: 68ch; }
+      .activity-event { margin-top: 12px; padding: 10px 12px; background: var(--orange-soft); border: 1px solid rgba(180,95,61,.16); border-radius: 7px; font-family: var(--mono); font-size: 10.5px; line-height: 1.55; color: var(--orange); }
+      .activity-progress { height: 3px; background: rgba(74,61,50,.07); margin-top: 14px; border-radius: 99px; overflow: hidden; }
+      .activity-progress span { display: block; height: 100%; background: var(--orange); transition: width .25s ease; }
+      .speed-panel { flex: 0 0 220px; padding: 10px 12px; border: 1px solid var(--line); background: var(--off); border-radius: 8px; }
+      .speed-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+      .speed-label { font-family: var(--mono); font-size: 9px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+      .speed-value { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--orange); }
+      .speed-panel input[type="range"] { width: 100%; accent-color: var(--orange); cursor: pointer; }
+      .speed-hint { margin-top: 5px; font-size: 10px; color: var(--muted); }
+      .empty .speed-panel { width: min(300px, 100%); margin: 18px auto 0; text-align: left; }
+
       .card { background: var(--white); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; margin-bottom: 18px; }
       .card.focus { border-color: var(--orange); box-shadow: 0 0 0 1px rgba(180,95,61,.24), 0 8px 26px rgba(180,95,61,.07); }
       .card.blue { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(86,117,143,.18), var(--shadow); }
@@ -222,6 +240,7 @@
       @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
       @keyframes railpulse { 0% { box-shadow: 0 0 0 0 rgba(180,95,61,.35); } 100% { box-shadow: 0 0 0 8px rgba(180,95,61,0); } }
       @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+      @media (max-width: 600px) { .speed-panel { flex-basis: 100%; } }
     </style>
   </head>
   <body>
@@ -254,12 +273,28 @@
       const LANE_CODE = { CONTEXT:"CONTEXT_ASSEMBLY" };
       const TERMINAL = ["RESOLVED","BLOCKED","REJECTED","FAILED","ESCALATED","HALTED"];
       const ICON = { step:"·", ok:"✓", blocked:"✕", why:"↳", approval:"◔", decision:"⚖" };
+      const ACTIVITY = {
+        RECEIVED: { title:"Receiving incident", doing:"Normalizing the incoming signal, assigning severity, and opening an evidence trail before analysis begins." },
+        OPC_MATCHED: { title:"Matching an operating procedure", doing:"Comparing the incident against registered procedures and checking that the winning match clears the safety margin." },
+        CONTEXT: { title:"Assembling trusted context", doing:"Fetching required service, deployment, and telemetry context while checking for missing or stale evidence." },
+        INVESTIGATING: { title:"Investigating evidence", doing:"Correlating observations and hypotheses against the assembled context. No operational action is allowed yet." },
+        DIAGNOSED: { title:"Grounding the diagnosis", doing:"Testing each diagnostic claim against evidence and recording unsupported or unresolved claims explicitly." },
+        PLANNED: { title:"Freezing the remediation plan", doing:"Selecting a registered action, binding its parameters, and hashing the plan so later mutation forces re-approval." },
+        WAITING_APPROVAL: { title:"Paused at the human gate", doing:"Policy classified this as an R2 production action. Execution is parked until an authorized, independent approver decides." },
+        EXECUTING: { title:"Executing the authorized action", doing:"Rechecking target state, validating the frozen plan, and running only the approved action through the sandbox connector." },
+        VERIFYING: { title:"Verifying the outcome", doing:"Running post-action checks and refusing to call the incident resolved until verification evidence passes." },
+        RESOLVED: { title:"Recording the verified outcome", doing:"Reconstructing the run from ordered evidence and closing the incident with a durable audit trail." },
+      };
+      const SPEEDS = [
+        { label:"0.5×", delay:2600 }, { label:"0.75×", delay:1800 }, { label:"1×", delay:1200 },
+        { label:"2×", delay:600 }, { label:"4×", delay:200 },
+      ];
       const LAB = {
-        "ambiguous":   { group:"Decision safety",     control:"OPC match margin guardrail", expect:"Escalates instead of guessing" },
-        "frozen-plan": { group:"Decision safety",     control:"Frozen Plan Rule",           expect:"Blocks post-approval mutation" },
-        "preflight-drift": { group:"Execution safety", control:"Preflight drift check",      expect:"Refuses to run on a changed target" },
-        "emergency-halt":  { group:"Execution safety", control:"Role-gated kill switch",     expect:"Only an authorized actor can halt" },
-        "budget":      { group:"Resource governance", control:"Budget guardrail",           expect:"Escalates, never truncates" },
+        "ambiguous":   { group:"Customer identity", control:"Profile vs wallet match margin", expect:"Escalates ownership ambiguity" },
+        "frozen-plan": { group:"Wallet safety", control:"Frozen wallet-limit plan", expect:"Blocks a substituted limit" },
+        "preflight-drift": { group:"Wallet safety", control:"Wallet ledger preflight", expect:"Refuses to act on a changed balance" },
+        "emergency-halt":  { group:"Customer identity", control:"Role-gated profile-merge halt", expect:"Only an authorized lead can halt" },
+        "budget":      { group:"Wallet safety", control:"Wallet investigation budget", expect:"Escalates, never returns a partial risk answer" },
       };
 
       const incidents = new Map();
@@ -267,6 +302,8 @@
       let selectedId = null;
       const submitState = new Map();   // incidentId -> {phase, message}
       const seen = new Set();
+      let speedIndex = Number(localStorage.getItem("aop-playback-speed") ?? 2);
+      if (!Number.isInteger(speedIndex) || speedIndex < 0 || speedIndex >= SPEEDS.length) speedIndex = 2;
 
       const el = (id) => document.getElementById(id);
       const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
@@ -281,7 +318,20 @@
         try { const r = await fetch(url, { method:"POST", headers:{"content-type":"application/json"}, body: JSON.stringify(body||{}) }); return await r.json().catch(()=>({})); }
         catch { return { error: "network" }; }
       }
-      function simulate() { post("/api/trigger", { key: "happy-path", source: "SIMULATOR" }); }
+      function playbackDelay() { return SPEEDS[speedIndex].delay; }
+      function updateSpeed(value) {
+        speedIndex = Math.max(0, Math.min(SPEEDS.length - 1, Number(value)));
+        localStorage.setItem("aop-playback-speed", String(speedIndex));
+        document.querySelectorAll(".speed-range").forEach(n => n.value = String(speedIndex));
+        document.querySelectorAll(".speed-value").forEach(n => n.textContent = SPEEDS[speedIndex].label);
+        post("/api/playback", { delayMs: playbackDelay() });
+      }
+      function speedControl() {
+        return `<div class="speed-panel"><div class="speed-top"><span class="speed-label">Playback speed</span><span class="speed-value">${SPEEDS[speedIndex].label}</span></div>
+          <input class="speed-range" type="range" min="0" max="4" step="1" value="${speedIndex}" oninput="updateSpeed(this.value)" aria-label="Playback speed" />
+          <div class="speed-hint">Adjusts the next lifecycle transition live.</div></div>`;
+      }
+      function simulate() { post("/api/trigger", { key: "happy-path", source: "SIMULATOR", playbackDelayMs: playbackDelay() }); }
 
       // ── rail ordering ──
       function rank(inc) {
@@ -320,14 +370,14 @@
         const ws = el("workspace");
         const inc = incidents.get(selectedId);
         if (!inc) { ws.innerHTML = emptyState(); return; }
-        ws.innerHTML = trustBadge(inc) + header(inc) + lifecycle(inc) + decisionCard(inc) + timeline(inc);
+        ws.innerHTML = trustBadge(inc) + header(inc) + lifecycle(inc) + activityPane(inc) + decisionCard(inc) + timeline(inc);
       }
       function emptyState() {
         return `<div class="empty">
           <div class="rad"></div>
           <h2>Listening for production incidents</h2>
           <p>AOP is monitoring your operations channel. New incidents are matched to an operating procedure and investigated automatically — production actions pause for human approval.</p>
-          <div class="hb" id="hbLine">Last heartbeat: —</div>
+          <div class="hb" id="hbLine">Last heartbeat: —</div>${speedControl()}
           <div class="acts"><button class="primary" onclick="simulate()">Simulate P1 Incident</button><button class="ghost" onclick="openLab()">Open Demo Lab</button></div>
         </div>`;
       }
@@ -361,6 +411,18 @@
         });
         html += "</div>";
         return html;
+      }
+
+      function activityPane(inc) {
+        const info = ACTIVITY[inc.lane] || { title: LANE_LABEL[inc.lane] || inc.lane, doing:"Processing the current governed lifecycle step." };
+        const latest = inc.timeline?.length ? inc.timeline[inc.timeline.length - 1] : null;
+        const idx = Math.max(0, LANES.indexOf(inc.lane));
+        const progress = Math.round(((idx + 1) / LANES.length) * 100);
+        return `<div class="card activity"><div class="activity-head"><div class="activity-copy">
+          <div class="eyebrow orange">Live agent activity · ${idx + 1}/${LANES.length}</div>
+          <div class="activity-title">${esc(info.title)}</div><div class="activity-doing">${esc(info.doing)}</div>
+          ${latest ? `<div class="activity-event"><span style="opacity:.65">LATEST EVIDENCE</span><br>${esc(latest.text)}</div>` : ""}
+          </div>${speedControl()}</div><div class="activity-progress"><span style="width:${progress}%"></span></div></div>`;
       }
 
       function decisionCard(inc) {
@@ -513,7 +575,7 @@
         }
         el("drawer").innerHTML = html; el("overlay").classList.add("show"); el("drawer").classList.add("show");
       }
-      function runLab(key) { post("/api/trigger", { key, source: "DEMO" }); closeAll(); }
+      function runLab(key) { post("/api/trigger", { key, source: "DEMO", playbackDelayMs: playbackDelay() }); closeAll(); }
       function closeAll() { el("overlay").classList.remove("show"); el("drawer").classList.remove("show"); el("inspDrawer").classList.remove("show"); }
 
       // ── top bar ──
@@ -556,6 +618,7 @@
       }
 
       connect();
+      post("/api/playback", { delayMs: playbackDelay() });
       pollListener(); setInterval(pollListener, 15000);
       setInterval(() => { if (incidents.get(selectedId) && !TERMINAL.includes(incidents.get(selectedId).status)) renderWorkspace(); }, 1000);
     </script>

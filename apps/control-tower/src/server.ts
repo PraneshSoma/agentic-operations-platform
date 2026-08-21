@@ -54,6 +54,7 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
   const slack: SlackClient = createSlackClient(config.slackBotToken);
   const userMap = parseUserMap(config.slackUserMap);
   const now = (): Date => new Date();
+  let demoPlaybackDelayMs = 1200;
 
   // The real engine runner: build a Presenter that fans out to the store
   // (UI over SSE) and Slack, then run the governed pipeline. Fire-and-forget.
@@ -65,6 +66,7 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
       channel: ctx.slackChannel ?? config.slackChannel,
       threadTs: ctx.slackThreadTs,
       now,
+      pacingMs: ctx.paced ? () => demoPlaybackDelayMs : undefined,
     });
     void runScenario({ scene: ctx.scenario.scene, incidentId: ctx.incidentId, store, decisions, presenter, now });
   };
@@ -110,6 +112,15 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
   // Listener health for the UI's "Slack listener" card.
   app.get("/api/listener", async () => listenerHealth());
 
+  app.get("/api/playback", async () => ({ delayMs: demoPlaybackDelayMs }));
+  app.post("/api/playback", async (req) => {
+    const body = (req.body ?? {}) as { delayMs?: number };
+    if (Number.isFinite(body.delayMs)) {
+      demoPlaybackDelayMs = Math.max(150, Math.min(3000, Math.round(body.delayMs!)));
+    }
+    return { delayMs: demoPlaybackDelayMs };
+  });
+
   // ── SSE stream ──
   app.get("/api/stream", (req, reply) => {
     reply.raw.writeHead(200, {
@@ -131,10 +142,13 @@ export function buildServer(config: ServerConfig = {}): FastifyInstance {
 
   // ── trigger a scenario (UI button, or an external incident webhook) ──
   app.post("/api/trigger", async (req, reply) => {
-    const body = (req.body ?? {}) as { key?: string; scene?: number; subject?: string; source?: string };
+    const body = (req.body ?? {}) as { key?: string; scene?: number; subject?: string; source?: string; playbackDelayMs?: number };
     // Honest ingress label: default SIMULATOR; the Demo Lab sends DEMO.
     const source = body.source === "DEMO" ? "DEMO" : "SIMULATOR";
-    const result = controller.trigger({ key: body.key, scene: body.scene, subject: body.subject, source });
+    if (Number.isFinite(body.playbackDelayMs)) {
+      demoPlaybackDelayMs = Math.max(150, Math.min(3000, Math.round(body.playbackDelayMs!)));
+    }
+    const result = controller.trigger({ key: body.key, scene: body.scene, subject: body.subject, source, paced: true });
     if (!result.ok) {
       return reply.code(400).send({ error: result.reason });
     }

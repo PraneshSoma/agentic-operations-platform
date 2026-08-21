@@ -97,6 +97,7 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
   const T = (to: Parameters<typeof machine.transitionTo>[0]["toState"], evt: string, evType: Parameters<typeof machine.transitionTo>[0]["evidenceType"], summary: string) =>
     machine.transitionTo({ tenantId: F.TENANT, executionId: execId, toState: to, eventType: evt, evidenceType: evType, evidenceSummary: summary });
 
+  await presenter.lane("RECEIVED");
   await presenter.step(`Incident INC-4417 received: "${F.incident().subject}"`);
 
   const match = await matchOpc(F.incident(), [F.errorSpikeOpc()], { minimumRequiredMargin: 0.15, semanticMatcher: new TextOverlapSemanticMatcher(), evidenceSink: new InMemoryOpcMatchEvidenceSink() });
@@ -216,10 +217,10 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
 // ── SCENE 2: ambiguous ticket → escalate ──
 async function sceneAmbiguous(deps: RunScenarioDeps): Promise<void> {
   const { presenter, store, incidentId, now } = deps;
-  const vague = F.incident({ subject: "something is wrong with the service", description: "the service seems off" });
-  const opcA = F.errorSpikeOpc();
-  const opcB = F.errorSpikeOpc({ opc_id: "opc_latency", name: "Latency Degradation" });
-  await presenter.step("A vague ticket arrives that scores almost equally against TWO procedures");
+  const vague = F.incident({ subject: "customer profile and wallet ownership do not agree", description: "the wallet appears linked to the wrong customer profile" });
+  const opcA = F.errorSpikeOpc({ opc_id: "opc_profile_reconciliation", name: "Customer Profile Reconciliation" });
+  const opcB = F.errorSpikeOpc({ opc_id: "opc_wallet_reconciliation", name: "Wallet Ownership Reconciliation" });
+  await presenter.step("A customer-state mismatch scores almost equally against profile and wallet reconciliation procedures");
   await presenter.lane("OPC_MATCHED");
   const match = await matchOpc(vague, [opcA, opcB], { minimumRequiredMargin: 0.15, semanticMatcher: new TextOverlapSemanticMatcher(), evidenceSink: new InMemoryOpcMatchEvidenceSink() });
   if (match.outcome === "MATCHED") {
@@ -228,7 +229,7 @@ async function sceneAmbiguous(deps: RunScenarioDeps): Promise<void> {
     return;
   }
   await presenter.blocked(`Outcome: ${match.outcome} — escalated to a human, no OPC auto-selected`);
-  await presenter.why("below the confidence margin it hands off rather than confidently doing the wrong remediation");
+    await presenter.why("the platform will not guess whether identity or wallet ownership is authoritative; it hands the case to a human");
   store.setStatus(incidentId, now().toISOString(), "ESCALATED");
 }
 
@@ -238,15 +239,15 @@ async function sceneFrozenPlan(deps: RunScenarioDeps): Promise<void> {
   const contextPackage = await assembleContextPackage({ tenantId: F.TENANT, requestId: "INC-4417", executionId: "exec_1", opcId: "opc_error_spike", requiredContext: F.errorSpikeOpc().required_context, connectorRegistry: F.demoRegistry(), now: N });
   const plan = await runPlanning({ investigation: await runInvestigation({ incomingRequest: F.incident(), opc: F.errorSpikeOpc(), contextPackage, llmProvider: F.investigationProvider() }), opc: F.errorSpikeOpc(), availableActions: [F.restartAction], llmProvider: F.planningProvider() });
   await presenter.lane("WAITING_APPROVAL");
-  await presenter.step('Approved plan: restart_service with { version: "1.3.0" }');
-  await presenter.step("The executor now tries to run a DIFFERENT parameter than what was approved…");
+  await presenter.step('Approved wallet change: set_daily_limit with { amount: 5000 }');
+  await presenter.step("The executor attempts to substitute an unapproved $50,000 wallet limit…");
   try {
     assertMatchesFrozenPlan(plan, { step_id: "step_1", action_ref: "restart_service", parameters: { version: "9.9.9-attacker" } });
     await presenter.blocked("Substitution allowed — this should NOT happen");
     store.setStatus(incidentId, now().toISOString(), "FAILED");
   } catch (e) {
     await presenter.blocked(`Blocked: ${(e as Error).constructor.name} — the frozen plan rejected the change`);
-    await presenter.why("what a human approved is exactly what runs; any drift forces re-approval, it never silently proceeds");
+    await presenter.why("the exact wallet value a human approved is cryptographically bound to the plan; mutation forces re-approval");
     store.setStatus(incidentId, now().toISOString(), "BLOCKED");
   }
 }
@@ -255,8 +256,8 @@ async function sceneFrozenPlan(deps: RunScenarioDeps): Promise<void> {
 async function scenePreflightDrift(deps: RunScenarioDeps): Promise<void> {
   const { presenter, store, incidentId, now } = deps;
   await presenter.lane("EXECUTING");
-  await presenter.step("Approved to act while version was 1.2.3 …");
-  await presenter.step("… but between approval and execution the target drifted to 1.2.4");
+  await presenter.step("Wallet reconciliation was approved against ledger revision 42 …");
+  await presenter.step("… but a new transaction advanced the wallet to revision 43 before execution");
   const connector = new SimulatedActionConnector(F.actionConnectorDescriptor, F.secretResolver, new Map([["version", "1.2.4"]]), () => N);
   const gate = await runApprovalAcceptanceGate({ tenantId: F.TENANT, policyDecision: evaluatePolicy({ decisionId: "dec_1", createdAt: N.toISOString(), proposedAction: F.proposedAction(), environment: "prod", actionDefinition: F.restartAction, missingRequiredEvidence: false, killSwitchActive: false, policyRules: [{ rule_id: "r", when: { environment: "prod", risk_class_in: ["R2"] }, decision: "REQUIRE_APPROVAL", approval_route: "senior_oncall" }], policyVersion: "v1", evidenceSummary: { precedent_count: 0, verified_success_count: 0, rollback_count: 0, failure_count: 0 }, now: N }), proposedAction: F.proposedAction(), decision: "APPROVED", actorId: F.APPROVER, identityResolver: F.identityResolver(), now: N, authorizationId: "auth_1", signedPlanHash: "sha256:plan", issuedBy: "approval-gate" });
   if (gate.outcome !== "AUTHORIZED") {
@@ -271,7 +272,7 @@ async function scenePreflightDrift(deps: RunScenarioDeps): Promise<void> {
     return;
   }
   await presenter.blocked(`Blocked: ${gated.outcome} — execution refused, sandbox untouched (still ${String(connector.getTargetState("version"))})`);
-  await presenter.why("a staged change between approval and execution is caught, not steamrolled — even a valid approval can't run against a changed world");
+  await presenter.why("a valid approval cannot mutate a wallet whose balance context changed; the platform requires a fresh plan and approval");
   store.setStatus(incidentId, now().toISOString(), "BLOCKED");
 }
 
@@ -286,7 +287,7 @@ async function sceneHalt(deps: RunScenarioDeps): Promise<void> {
   await machine.transitionTo({ tenantId: F.TENANT, executionId: execution.execution_id, toState: "CONTEXT_ASSEMBLY", eventType: "context", evidenceType: "CONTEXT", evidenceSummary: "assembling" });
   await machine.transitionTo({ tenantId: F.TENANT, executionId: execution.execution_id, toState: "INVESTIGATING", eventType: "inv", evidenceType: "OBSERVATION", evidenceSummary: "investigating" });
   await presenter.lane("INVESTIGATING");
-  await presenter.step("Execution is in-flight (state: INVESTIGATING)");
+  await presenter.step("A duplicate-customer profile merge is in-flight (state: INVESTIGATING)");
 
   const req = { requiredHaltRoles: ["senior_oncall", "platform_owner"], identityResolver: F.identityResolver(), stateMachine: machine, stateStore } as const;
   const bad = await haltExecution({ ...req, tenantId: F.TENANT, executionId: execution.execution_id, haltRequest: { actor: { id: F.PROPOSER, role: "senior_oncall" }, scope: "single_execution", reason: "curious", created_at: N.toISOString() } });
@@ -300,7 +301,7 @@ async function sceneHalt(deps: RunScenarioDeps): Promise<void> {
     return;
   }
   await presenter.ok(`${F.APPROVER} halts it → state ${good.execution.state}, with an auditable OUTCOME evidence record`, "OUTCOME");
-  await presenter.why("an authorized operator can stop automation instantly, and the halt itself is on the audit trail");
+  await presenter.why("an authorized operator can stop a risky customer-profile merge instantly, and the halt itself is audited");
   store.setStatus(incidentId, now().toISOString(), "HALTED");
 }
 
@@ -317,7 +318,7 @@ async function sceneBudget(deps: RunScenarioDeps): Promise<void> {
   await presenter.lane("INVESTIGATING");
   const current = (await stateStore.get(F.TENANT, execution.execution_id))!;
   await stateStore.save({ ...current, budget_consumed: { investigation_tokens: 15_000, planning_tokens: 0, tool_calls: 4 } });
-  await presenter.step("Investigation consumed 15,000 tokens against a 10,000 ceiling");
+  await presenter.step("Wallet-risk investigation consumed 15,000 tokens against a 10,000 ceiling");
   const result = await enforceBudget({ tenantId: F.TENANT, executionId: execution.execution_id, budget: F.errorSpikeOpc().budget, stateMachine: machine, stateStore, evidenceRecorder, now: () => N });
   if (result.outcome !== "ESCALATED") {
     await presenter.blocked(`Unexpected: ${result.outcome}`);
@@ -325,6 +326,6 @@ async function sceneBudget(deps: RunScenarioDeps): Promise<void> {
     return;
   }
   await presenter.blocked(`Escalated: BUDGET_EXCEEDED (${result.exceededDimensions.join(", ")}) → state ${result.execution.state}`);
-  await presenter.why("it stops and escalates rather than truncating the investigation and presenting a partial diagnosis as if it were complete");
+  await presenter.why("it escalates rather than presenting a partial wallet-risk assessment as a complete answer");
   store.setStatus(incidentId, now().toISOString(), "ESCALATED");
 }

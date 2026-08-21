@@ -27,6 +27,8 @@ export interface PresenterDeps {
   /** Existing thread ts when the incident was triggered from a Slack message. */
   threadTs?: string | undefined;
   now: () => Date;
+  /** Current delay between visible lifecycle lanes for interactive demos. */
+  pacingMs?: (() => number) | undefined;
 }
 
 export class Presenter {
@@ -90,6 +92,10 @@ export class Presenter {
 
   async lane(lane: Lane): Promise<void> {
     this.deps.store.setLane(this.deps.incidentId, this.at(), lane);
+    const delay = Math.max(0, this.deps.pacingMs?.() ?? 0);
+    if (delay > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, delay));
+    }
   }
 
   /** Sets the current-analysis card (store-only, no Slack side effect). */

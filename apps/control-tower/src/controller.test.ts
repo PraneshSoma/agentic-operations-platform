@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { Controller, defaultSeverity, defaultSubject, type TriggerContext } from "./controller.js";
+import { Controller, defaultService, defaultSeverity, defaultSubject, type TriggerContext } from "./controller.js";
 import { DecisionRegistry } from "./decision-registry.js";
 import { IncidentStore } from "./incident-store.js";
 
@@ -27,6 +27,12 @@ describe("Controller", () => {
     const r = controller.trigger({ key: "budget" });
     expect(r.ok).toBe(true);
     expect(run).toHaveBeenCalledWith(expect.objectContaining({ scenario: expect.objectContaining({ scene: 6 }) }));
+  });
+
+  it("passes interactive pacing through to the runner", () => {
+    const { run, controller } = make(() => "INC-P");
+    controller.trigger({ key: "happy-path", paced: true });
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({ paced: true }));
   });
 
   it("stamps meta on create: P1 for the happy path, honest source, service, gate", () => {
@@ -63,7 +69,7 @@ describe("Controller", () => {
   it("uses the per-scene default subject when a blank one is given", () => {
     const { store, controller } = make(() => "INC-5");
     controller.trigger({ scene: 2, subject: "   " });
-    expect(store.get("INC-5")?.subject).toBe("Something is wrong with the service");
+    expect(store.get("INC-5")?.subject).toBe("Customer profile and wallet ownership do not agree");
   });
 
   it("rejects an unknown scenario without creating an incident or running", () => {
@@ -103,5 +109,15 @@ describe("defaultSeverity", () => {
   it("is P1 for the happy path and P2 otherwise", () => {
     expect(defaultSeverity(1)).toBe("P1");
     expect(defaultSeverity(4)).toBe("P2");
+  });
+});
+
+describe("defaultService", () => {
+  it("routes profile and wallet demo scenes to their customer-domain services", () => {
+    expect(defaultService(2)).toBe("customer-profile-service");
+    expect(defaultService(5)).toBe("customer-profile-service");
+    expect(defaultService(3)).toBe("wallet-service");
+    expect(defaultService(4)).toBe("wallet-service");
+    expect(defaultService(6)).toBe("wallet-service");
   });
 });
