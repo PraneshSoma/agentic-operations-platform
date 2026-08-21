@@ -194,6 +194,25 @@ async function sceneHappyPath(deps: RunScenarioDeps): Promise<void> {
     action: "remediate_profile_db_cache",
     parameters: { dbLatencyMs: 45, cacheTtlSeconds: 60, prewarm: true, singleFlight: true },
     reason: "profile DB latency is causing customer-facing wallet authorization failures; remediation changes production cache behavior",
+    impact: [
+      `Customer profile p95 is ${impact?.profile.p95Ms ?? 1400} ms against a 500 ms wallet dependency timeout`,
+      `${impact?.wallet.failures ?? 12}/${impact?.wallet.authorizations ?? 12} sampled wallet authorizations failed`,
+      `${impact?.profile.dbReads ?? 12} cache-bypassing reads reached the profile database`,
+      "Dependency path: profile database → customer-profile API → wallet authorization → customer transaction",
+    ],
+    remediationSteps: [
+      "Restore profile database response time to the 45 ms operating target",
+      "Re-enable cache-aside reads with a 60-second TTL",
+      "Pre-warm the affected customer profile before restoring traffic",
+      "Enable single-flight miss coalescing so concurrent misses produce one database read",
+    ],
+    successCriteria: [
+      "12/12 synthetic wallet authorization probes succeed",
+      "Profile cache hit rate returns to 100% for the validation burst",
+      "Wallet dependency failures return to zero",
+      "Profile p95 remains below the wallet's 500 ms timeout",
+    ],
+    rollbackPlan: "Disable the cache path, restore the previous profile read policy, and keep wallet authorization fail-closed if any verification probe fails.",
   });
   await presenter.why("this is the live gate — approve or reject from the UI or the Slack thread; whichever acts first wins");
 

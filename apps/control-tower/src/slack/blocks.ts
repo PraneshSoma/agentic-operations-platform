@@ -26,17 +26,42 @@ function context(text: string): SlackBlock {
   return { type: "context", elements: [{ type: "mrkdwn", text }] };
 }
 
+function bullets(items: string[] | undefined, fallback: string): string {
+  return (items?.length ? items : [fallback]).map((item) => `• ${item}`).join("\n");
+}
+
 /** The root message announcing a new incident — everything threads under it. */
 export function incidentAnnouncementBlocks(incident: Incident): SlackBlock[] {
   return [
-    section(`:rotating_light: *Incident ${incident.id}* — ${incident.subject}`),
-    context(`Scene ${incident.scene} · ${incident.sceneTitle} · reported via Slack`),
+    section(`:rotating_light: *${incident.severity ?? "P2"} incident ${incident.id}*\n${incident.subject}`),
+    section(
+      [
+        `*Affected service:* \`${incident.service ?? "unknown"}\``,
+        `*Detection source:* \`${incident.source ?? "unknown"}\``,
+        `*Operating mode:* ${incident.mode ?? "Auto investigation"}`,
+        `*Human gate:* ${incident.humanGate ?? "Policy controlled"}`,
+      ].join("\n"),
+    ),
+    section("*Suspected dependency path*\n`profile database` → `customer-profile API` → `wallet authorization` → `customer transaction`"),
+    context(`Scene ${incident.scene} · ${incident.sceneTitle} · all findings and actions will be recorded in this thread`),
   ];
 }
 
 /** A short status line posted into the incident's thread as the pipeline moves. */
 export function statusUpdateText(incident: Incident, line: string): string {
-  return `\`${incident.lane}\`  ${line}`;
+  const purpose: Partial<Record<Incident["lane"], string>> = {
+    RECEIVED: "Impact reproduction",
+    OPC_MATCHED: "Operating procedure selection",
+    CONTEXT: "Dependency and telemetry context",
+    INVESTIGATING: "Evidence correlation",
+    DIAGNOSED: "Evidence-backed root cause",
+    PLANNED: "Frozen remediation plan",
+    WAITING_APPROVAL: "Production change policy",
+    EXECUTING: "Authorized remediation",
+    VERIFYING: "Post-change validation",
+    RESOLVED: "Verified recovery",
+  };
+  return `*${incident.lane} · ${purpose[incident.lane] ?? "Lifecycle update"}*\n${line}\n_Incident ${incident.id} · ${incident.service ?? "unknown service"}_`;
 }
 
 /**
@@ -48,17 +73,19 @@ export function approvalRequestBlocks(incident: Incident): SlackBlock[] {
   const a = incident.approval;
   const params = a ? JSON.stringify(a.parameters) : "{}";
   return [
-    section(`:lock: *Approval required* for incident *${incident.id}*`),
+    section(`:lock: *Production remediation approval required*\nIncident *${incident.id}* · ${incident.subject}`),
+    section(`*Customer impact observed*\n${bullets(a?.impact, "Impact evidence unavailable")}`),
     section(
       [
-        `*Action:* \`${a?.action ?? "unknown"}\``,
-        `*Parameters:* \`${params}\``,
-        `*Proposed by:* ${a?.proposer ?? "unknown"}`,
-        `*Requires role:* \`${a?.requiredRole ?? "unknown"}\``,
-        `*Why:* ${a?.reason ?? ""}`,
+        `*Proposed action:* \`${a?.action ?? "unknown"}\``,
+        `*Why this action:* ${a?.reason ?? ""}`,
+        `*Change parameters:* \`${params}\``,
       ].join("\n"),
     ),
-    context("A _different_ person than the proposer must approve — the action runs under the approver's identity."),
+    section(`*Execution plan*\n${(a?.remediationSteps?.length ? a.remediationSteps : ["No detailed steps supplied"]).map((step, index) => `${index + 1}. ${step}`).join("\n")}`),
+    section(`*Verification required before closure*\n${bullets(a?.successCriteria, "Standard post-action verification")}`),
+    section(`*Rollback / fail-safe*\n${a?.rollbackPlan ?? "Stop execution and escalate if any verification check fails."}`),
+    context(`Proposed by ${a?.proposer ?? "unknown"} · requires ${a?.requiredRole ?? "unknown"} · R2 production change · separation of duties enforced`),
     {
       type: "actions",
       block_id: `approval:${incident.id}`,
@@ -95,7 +122,12 @@ export function approvalResolvedBlocks(incident: Incident): SlackBlock[] {
   const verb = approved ? "Approved" : "Rejected";
   const via = a?.decidedVia === "slack" ? "in Slack" : "in the Control Tower UI";
   return [
-    section(`${icon} *${verb}* — incident *${incident.id}*`),
-    context(`${verb} by ${a?.decidedBy ?? "unknown"} ${via} · action \`${a?.action ?? ""}\``),
+    section(`${icon} *Remediation ${verb.toLowerCase()}* — incident *${incident.id}*`),
+    section(
+      approved
+        ? `*Authorized action:* \`${a?.action ?? ""}\`\n*Decision owner:* ${a?.decidedBy ?? "unknown"} ${via}\n*Next:* execute the frozen plan, then run every success criterion before declaring recovery.`
+        : `*Rejected action:* \`${a?.action ?? ""}\`\n*Decision owner:* ${a?.decidedBy ?? "unknown"} ${via}\n*Result:* no production change was executed; the incident remains contained and escalated.`,
+    ),
+    context(`${verb} under the ${a?.requiredRole ?? "unknown"} role · decision recorded in the incident evidence trail`),
   ];
 }

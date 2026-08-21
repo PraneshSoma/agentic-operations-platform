@@ -27,7 +27,10 @@ describe("blocks", () => {
   });
 
   it("prefixes a status line with the current lane", () => {
-    expect(statusUpdateText(incident(), "✅ matched")).toBe("`WAITING_APPROVAL`  ✅ matched");
+    const text = statusUpdateText(incident(), "✅ matched");
+    expect(text).toContain("WAITING_APPROVAL · Production change policy");
+    expect(text).toContain("✅ matched");
+    expect(text).toContain("Incident INC-1");
   });
 
   it("builds an approval card with Approve and Reject buttons carrying the incident id", () => {
@@ -37,6 +40,9 @@ describe("blocks", () => {
     expect(actions.elements.every((e) => e.value === "INC-1")).toBe(true);
     expect(JSON.stringify(blocks)).toContain("restart_service");
     expect(JSON.stringify(blocks)).toContain("1.3.0");
+    expect(JSON.stringify(blocks)).toContain("Customer impact observed");
+    expect(JSON.stringify(blocks)).toContain("Verification required before closure");
+    expect(JSON.stringify(blocks)).toContain("Rollback / fail-safe");
   });
 
   it("tolerates a missing approval object without throwing", () => {

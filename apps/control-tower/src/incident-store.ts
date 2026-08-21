@@ -61,6 +61,11 @@ export interface ApprovalRequest {
   action: string;
   parameters: Record<string, unknown>;
   reason: string;
+  /** Operator-facing context rendered in the Slack approval briefing. */
+  impact?: string[] | undefined;
+  remediationSteps?: string[] | undefined;
+  successCriteria?: string[] | undefined;
+  rollbackPlan?: string | undefined;
   /** Filled once someone acts, from the UI or from Slack. */
   decision?: "APPROVED" | "REJECTED";
   decidedBy?: string;
