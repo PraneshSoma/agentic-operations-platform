@@ -14,6 +14,7 @@ context/
     vision-and-differentiation.md →  Discovery input: business_ask (the "why it matters" layer)
     product-context.md            →  Presentation-ready positioning, demo narrative, and messaging
   engineering-context/
+    engineering-context.md       →  Implemented architecture, runtime, demo topology, and boundaries
     system-inventory.md          →  Discovery input: system_inventory
                                      also: ADR input: architecture_context
     technical-constraints.md     →  ADR input: architecture_context (constraints half)
@@ -66,3 +67,9 @@ For executive briefings, demos, and source-grounded deck generation, use
 `product-intent/product-context.md`. It packages the approved product narrative,
 elevator pitch, lifecycle, proof scenario, governance principles, and visual
 guidance without replacing the implementation or engineering sources of truth.
+
+For contributor onboarding, technical reviews, and architecture presentations,
+use `engineering-context/engineering-context.md`. It summarizes the implemented
+workspace, runtime flow, Control Tower and Slack wiring, profile/wallet demo,
+security boundaries, local topology, and the substitutions still required for
+production.
