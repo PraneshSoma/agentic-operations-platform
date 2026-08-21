@@ -254,6 +254,7 @@
       <span class="chip">Human approval: <b>R2+</b></span>
       <span class="spacer"></span>
       <span id="waitChip" class="chip count" style="display:none"></span>
+      <button class="ghost" onclick="goHome()">Home</button>
       <button class="ghost" onclick="openLab()">Demo Lab</button>
       <button class="primary" onclick="simulate()">Trigger Profile P1</button>
     </header>
@@ -338,6 +339,7 @@
           <div class="speed-hint">Adjusts the next lifecycle transition live.</div></div>`;
       }
       function simulate() { post("/api/trigger", { key: "happy-path", source: "SIMULATOR", playbackDelayMs: playbackDelay() }); }
+      function goHome() { selectedId = null; closeAll(); renderWorkspace(); renderInspector(); }
 
       // ── rail ordering ──
       function rank(inc) {
