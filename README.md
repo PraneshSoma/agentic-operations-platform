@@ -64,6 +64,7 @@ upstream repo.
 | `README.md` | this file |
 | `CONTEXT.md` | the standing brief every loop agent reads — domain, stack, coding rules |
 | `context/product-intent/`, `context/engineering-context/` | composite context driving Phase 1 — see `context/README.md` |
+| `context/product-intent/product-context.md` | executive positioning, elevator pitch, demo narrative, and presentation guidance |
 | `requirements/AOP-001-*.md` | the Phase 2+ architecture reference — the full implementation spec |
 | `loop/agents/` | 12 agent bodies + supervisor, filled in for this product's domain |
 | `loop/config/loop.config.json` | model tiers, budgets, guardrails, test/lint commands |
